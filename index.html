@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>SIMPEG-TIGA | Sistem Presensi Guru Digital</title>
+  <link rel="stylesheet" href="style.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+
+  <!-- ============================================ -->
+  <!-- LOADING OVERLAY -->
+  <!-- ============================================ -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p>Memuat sistem...</p>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- TOAST NOTIFICATION -->
+  <!-- ============================================ -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ============================================ -->
+  <!-- HALAMAN LOGIN & REGISTER (SPLIT SCREEN) -->
+  <!-- ============================================ -->
+  <div id="pageAuth" class="auth-page">
+    <div class="split-layout">
+
+      <!-- LEFT SIDE - BRANDING -->
+      <div class="split-left">
+        <div class="brand-content">
+          <div class="brand-icon">
+            <i class="fas fa-landmark"></i>
+          </div>
+          <h1 class="brand-title">
+            <span class="brand-s">SIMPEG</span>
+            <span class="brand-dash">—</span>
+            <span class="brand-three">TIGA</span>
+          </h1>
+          <p class="brand-tagline">Sistem Presensi Digital</p>
+          <div class="brand-divider"></div>
+          <p class="brand-desc">
+            SMP Negeri Pulau Tiga<br>
+            Papua Tengah
+          </p>
+          <div class="feature-list">
+            <div class="feature-item">
+              <i class="fas fa-camera"></i>
+              <span>Verifikasi Foto Selfi</span>
+            </div>
+            <div class="feature-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>Validasi Geolokasi</span>
+            </div>
+            <div class="feature-item">
+              <i class="fas fa-chart-line"></i>
+              <span>Laporan Bulanan Otomatis</span>
+            </div>
+            <div class="feature-item">
+              <i class="fas fa-shield-alt"></i>
+              <span>Sistem Aman & Terenkripsi</span>
+            </div>
+          </div>
+        </div>
+        <div class="brand-wave">
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path d="M0,64 C320,80 480,32 720,48 C960,64 1120,80 1440,64 L1440,120 L0,120 Z"
+              fill="rgba(255,255,255,0.08)" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- RIGHT SIDE - FORM LOGIN & REGISTER -->
+      <div class="split-right">
+        <div class="form-wrapper">
+
+          <!-- FORM LOGIN -->
+          <div id="loginFormContainer" class="form-container active">
+            <div class="form-header">
+              <h2>Selamat Datang</h2>
+              <p>Masuk ke akun presensi Anda</p>
+            </div>
+            <form id="loginForm" onsubmit="return false;">
+              <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+              </div>
+              <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+                <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-options">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="rememberMe"> <span>Ingat saya</span>
+                </label>
+                <a href="#" id="forgotPasswordLink" class="forgot-link">Lupa password?</a>
+              </div>
+              <button type="submit" class="btn-login" onclick="doLogin()">
+                <span>Masuk</span>
+                <i class="fas fa-arrow-right"></i>
+              </button>
+            </form>
+            <div id="loginMessage" class="message-container"></div>
+            <div class="form-footer">
+              <p>Belum punya akun? <a href="#" id="showRegisterBtn">Daftar Sekarang</a></p>
+            </div>
+          </div>
+
+          <!-- FORM REGISTER -->
+          <div id="registerFormContainer" class="form-container">
+            <div class="form-header">
+              <h2>Buat Akun Baru</h2>
+              <p>Isi data diri Anda dengan benar</p>
+            </div>
+            <form id="registerForm" onsubmit="return false;">
+              <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" id="regName" placeholder="Nama Lengkap">
+              </div>
+              <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="regEmail" placeholder="Email">
+              </div>
+              <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="regPassword" placeholder="Password (min 8 karakter)">
+                <button type="button" class="toggle-password" onclick="togglePassword('regPassword')">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="regConfirm" placeholder="Konfirmasi Password">
+                <button type="button" class="toggle-password" onclick="togglePassword('regConfirm')">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+
+              <!-- PILIHAN ROLE -->
+              <div class="role-selector">
+                <label class="role-option">
+                  <input type="radio" name="regRole" value="guru" checked>
+                  <span class="role-card">
+                    <i class="fas fa-chalkboard-user"></i>
+                    <strong>Guru</strong>
+                    <small>Akses presensi & riwayat</small>
+                  </span>
+                </label>
+                <label class="role-option">
+                  <input type="radio" name="regRole" value="kepsek">
+                  <span class="role-card">
+                    <i class="fas fa-user-tie"></i>
+                    <strong>Kepala Sekolah</strong>
+                    <small>Akses penuh & laporan</small>
+                  </span>
+                </label>
+              </div>
+
+              <!-- CAPTCHA SEDERHANA -->
+              <div class="captcha-container">
+                <span class="captcha-question" id="captchaQuestion">5 + 3 = ?</span>
+                <input type="number" id="captchaAnswer" placeholder="Jawaban" class="captcha-input">
+              </div>
+
+              <button type="submit" class="btn-register" onclick="doRegister()">
+                <span>Daftar Sekarang</span>
+                <i class="fas fa-user-plus"></i>
+              </button>
+            </form>
+            <div id="registerMessage" class="message-container"></div>
+            <div class="form-footer">
+              <p>Sudah punya akun? <a href="#" id="showLoginBtn">Masuk</a></p>
+            </div>
+          </div>
+
+          <!-- VERIFIKASI PAGE (Setelah register sukses) -->
+          <div id="verifyContainer" class="form-container" style="display:none;">
+            <div class="verify-icon">
+              <i class="fas fa-envelope-open-text"></i>
+            </div>
+            <h3>Cek Email Anda</h3>
+            <p id="verifyMessage">Link aktivasi telah dikirim ke email Anda.</p>
+            <button class="btn-resend" onclick="resendActivation()">
+              <i class="fas fa-redo"></i> Kirim Ulang Email
+            </button>
+            <button class="btn-back-login" onclick="backToLogin()">
+              <i class="fas fa-arrow-left"></i> Kembali ke Login
+            </button>
+            <div class="manual-activate">
+              <p>Punya token aktivasi?</p>
+              <div class="input-group-small">
+                <input type="text" id="manualToken" placeholder="Tempel token di sini">
+                <button onclick="manualActivate()">Aktifkan</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- FORGOT PASSWORD -->
+          <div id="forgotContainer" class="form-container" style="display:none;">
+            <div class="form-header">
+              <h2>Reset Password</h2>
+              <p>Kami akan mengirimkan kode OTP ke email Anda</p>
+            </div>
+            <div id="forgotStep1">
+              <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="forgotEmail" placeholder="Email terdaftar">
+              </div>
+              <button class="btn-primary" onclick="sendOTP()">Kirim OTP</button>
+            </div>
+            <div id="forgotStep2" style="display:none;">
+              <p>Masukkan kode OTP 6 digit</p>
+              <div class="otp-inputs">
+                <input type="text" maxlength="1" class="otp-digit" data-idx="0">
+                <input type="text" maxlength="1" class="otp-digit" data-idx="1">
+                <input type="text" maxlength="1" class="otp-digit" data-idx="2">
+                <input type="text" maxlength="1" class="otp-digit" data-idx="3">
+                <input type="text" maxlength="1" class="otp-digit" data-idx="4">
+                <input type="text" maxlength="1" class="otp-digit" data-idx="5">
+              </div>
+              <p class="otp-timer">Kode berlaku <span id="otpTimer">15:00</span></p>
+              <button class="btn-primary" onclick="verifyOTP()">Verifikasi OTP</button>
+              <button class="btn-secondary" onclick="resendOTP()">Kirim Ulang</button>
+            </div>
+            <div id="forgotStep3" style="display:none;">
+              <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="newPassword" placeholder="Password baru">
+              </div>
+              <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="confirmNewPassword" placeholder="Konfirmasi password baru">
+              </div>
+              <button class="btn-primary" onclick="resetPassword()">Simpan Password Baru</button>
+            </div>
+            <div class="form-footer">
+              <a href="#" onclick="backToLogin()">← Kembali ke Login</a>
+            </div>
+            <div id="forgotMessage" class="message-container"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- HALAMAN DASHBOARD GURU -->
+  <!-- ============================================ -->
+  <div id="pageGuru" class="dashboard-page" style="display:none;">
+    <!-- NAVBAR -->
+    <nav class="dashboard-nav">
+      <div class="nav-brand">
+        <i class="fas fa-landmark"></i>
+        <span>SIMPEG<span>-TIGA</span></span>
+      </div>
+      <div class="nav-user">
+        <div class="user-info">
+          <span class="user-name" id="guruName">—</span>
+          <span class="user-role">Guru</span>
+        </div>
+        <div class="user-avatar" id="guruAvatar">G</div>
+        <button class="nav-logout" onclick="logout()">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
+    </nav>
+
+    <div class="dashboard-content">
+      <!-- WELCOME BANNER -->
+      <div class="welcome-banner">
+        <div class="welcome-text">
+          <h2 id="guruGreeting">Selamat Pagi!</h2>
+          <p id="guruDate">—</p>
+        </div>
+        <div class="time-badge">
+          <i class="fas fa-clock"></i>
+          <span id="guruTime">—</span>
+          <span class="timezone">WIT</span>
+        </div>
+      </div>
+
+      <!-- STATS CARDS -->
+      <div class="stats-grid">
+        <div class="stat-card stat-hadir">
+          <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statHadir">0</span>
+            <span class="stat-label">Hadir</span>
+          </div>
+        </div>
+        <div class="stat-card stat-terlambat">
+          <div class="stat-icon"><i class="fas fa-clock"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTerlambat">0</span>
+            <span class="stat-label">Terlambat</span>
+          </div>
+        </div>
+        <div class="stat-card stat-sakit">
+          <div class="stat-icon"><i class="fas fa-notes-medical"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statSakit">0</span>
+            <span class="stat-label">Sakit/Izin</span>
+          </div>
+        </div>
+        <div class="stat-card stat-alfa">
+          <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statAlfa">0</span>
+            <span class="stat-label">Alfa</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="dashboard-tabs">
+        <button class="tab-btn active" data-tab="presensi" onclick="showTab('presensi')">
+          <i class="fas fa-fingerprint"></i> Presensi
+        </button>
+        <button class="tab-btn" data-tab="izin" onclick="showTab('izin')">
+          <i class="fas fa-file-medical"></i> Izin Sakit
+        </button>
+        <button class="tab-btn" data-tab="riwayat" onclick="showTab('riwayat'); loadHistory()">
+          <i class="fas fa-history"></i> Riwayat
+        </button>
+      </div>
+
+      <!-- TAB PRESENSI -->
+      <div id="tabPresensi" class="tab-content active">
+        <div class="presensi-grid">
+          <!-- ABSEN MASUK CARD -->
+          <div class="presensi-card" id="cardMasuk">
+            <div class="card-header">
+              <div class="card-icon masuk"><i class="fas fa-sign-in-alt"></i></div>
+              <div>
+                <h3>Absen Masuk</h3>
+                <p class="time-window" id="windowMasuk">07:30 – 08:00 WIT</p>
+              </div>
+            </div>
+            <div class="presensi-status" id="statusMasuk">
+              <span class="badge pending">Belum Absen</span>
+            </div>
+            <div class="camera-section" id="cameraSectionMasuk">
+              <div class="video-container">
+                <video id="videoMasuk" autoplay playsinline muted></video>
+                <canvas id="canvasMasuk" style="display:none;"></canvas>
+                <div class="camera-overlay" id="cameraOverlayMasuk">
+                  <div class="face-guide"></div>
+                  <div class="countdown" id="countdownMasuk">3</div>
+                </div>
+              </div>
+              <div class="camera-controls">
+                <button class="btn-cam" id="btnStartCamMasuk" onclick="startCamera('masuk')">
+                  <i class="fas fa-camera"></i> Buka Kamera
+                </button>
+                <button class="btn-capture" id="btnCaptureMasuk" onclick="startCountdown('masuk')"
+                  style="display:none;">
+                  <i class="fas fa-circle"></i> Ambil Foto
+                </button>
+                <button class="btn-stop" id="btnStopMasuk" onclick="stopCamera('masuk')" style="display:none;">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div class="photo-preview" id="previewMasuk" style="display:none;">
+              <img id="previewMasukImg" src="">
+              <button class="btn-retake" onclick="retakePhoto('masuk')"><i class="fas fa-redo"></i> Ulangi</button>
+            </div>
+            <div class="location-status" id="locMasuk">
+              <div class="loc-loading"><i class="fas fa-spinner fa-spin"></i> Mendeteksi lokasi...</div>
+            </div>
+            <button class="btn-absen" id="btnAbsenMasuk" onclick="submitAbsen('masuk')" disabled>
+              <i class="fas fa-fingerprint"></i> Absen Masuk
+            </button>
+          </div>
+
+          <!-- ABSEN PULANG CARD -->
+          <div class="presensi-card" id="cardPulang">
+            <div class="card-header">
+              <div class="card-icon pulang"><i class="fas fa-sign-out-alt"></i></div>
+              <div>
+                <h3>Absen Pulang</h3>
+                <p class="time-window" id="windowPulang">12:15 – 12:30 WIT</p>
+              </div>
+            </div>
+            <div class="presensi-status" id="statusPulang">
+              <span class="badge pending">Belum Absen</span>
+            </div>
+            <div class="camera-section" id="cameraSectionPulang">
+              <div class="video-container">
+                <video id="videoPulang" autoplay playsinline muted></video>
+                <canvas id="canvasPulang" style="display:none;"></canvas>
+                <div class="camera-overlay" id="cameraOverlayPulang">
+                  <div class="face-guide"></div>
+                  <div class="countdown" id="countdownPulang">3</div>
+                </div>
+              </div>
+              <div class="camera-controls">
+                <button class="btn-cam" id="btnStartCamPulang" onclick="startCamera('pulang')">
+                  <i class="fas fa-camera"></i> Buka Kamera
+                </button>
+                <button class="btn-capture" id="btnCapturePulang" onclick="startCountdown('pulang')"
+                  style="display:none;">
+                  <i class="fas fa-circle"></i> Ambil Foto
+                </button>
+                <button class="btn-stop" id="btnStopPulang" onclick="stopCamera('pulang')" style="display:none;">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div class="photo-preview" id="previewPulang" style="display:none;">
+              <img id="previewPulangImg" src="">
+              <button class="btn-retake" onclick="retakePhoto('pulang')"><i class="fas fa-redo"></i> Ulangi</button>
+            </div>
+            <div class="location-status" id="locPulang">
+              <div class="loc-loading"><i class="fas fa-spinner fa-spin"></i> Mendeteksi lokasi...</div>
+            </div>
+            <button class="btn-absen" id="btnAbsenPulang" onclick="submitAbsen('pulang')" disabled>
+              <i class="fas fa-fingerprint"></i> Absen Pulang
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB IZIN SAKIT -->
+      <div id="tabIzin" class="tab-content">
+        <div class="form-card">
+          <h3><i class="fas fa-file-medical-alt"></i> Form Izin / Sakit</h3>
+          <div class="form-group">
+            <label>Tanggal</label>
+            <input type="date" id="sickDate">
+          </div>
+          <div class="form-group">
+            <label>Alasan / Keterangan</label>
+            <textarea id="sickReason" rows="4" placeholder="Jelaskan kondisi Anda..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Bukti Pendukung (Opsional)</label>
+            <div class="upload-area" onclick="document.getElementById('sickFile').click()">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <p>Klik untuk upload foto surat dokter</p>
+              <span id="sickFileName">Belum ada file</span>
+            </div>
+            <input type="file" id="sickFile" accept="image/*" style="display:none" onchange="previewSickFile(this)">
+          </div>
+          <div id="sickPreview" class="sick-preview" style="display:none;">
+            <img id="sickPreviewImg" src="">
+          </div>
+          <button class="btn-submit" onclick="submitSick()">
+            <i class="fas fa-paper-plane"></i> Kirim Laporan
+          </button>
+          <div id="sickMessage" class="message-container"></div>
+        </div>
+
+        <div class="form-card">
+          <h3><i class="fas fa-list"></i> Riwayat Izin / Sakit</h3>
+          <div id="sickList">
+            <div class="empty-state"><i class="fas fa-inbox"></i>
+              <p>Belum ada laporan</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB RIWAYAT -->
+      <div id="tabRiwayat" class="tab-content">
+        <div class="form-card">
+          <div class="filter-bar">
+            <select id="historyMonth">
+              <option value="01">Januari</option>
+              <option value="02">Februari</option>
+              <option value="03">Maret</option>
+              <option value="04">April</option>
+              <option value="05">Mei</option>
+              <option value="06">Juni</option>
+              <option value="07">Juli</option>
+              <option value="08">Agustus</option>
+              <option value="09">September</option>
+              <option value="10">Oktober</option>
+              <option value="11">November</option>
+              <option value="12">Desember</option>
+            </select>
+            <select id="historyYear"></select>
+            <button class="btn-filter" onclick="loadHistory()"><i class="fas fa-search"></i> Tampilkan</button>
+            <button class="btn-export" onclick="exportPDF()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+          </div>
+          <div id="historyTable">
+            <div class="empty-state"><i class="fas fa-spinner fa-spin"></i>
+              <p>Memuat...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- HALAMAN DASHBOARD KEPALA SEKOLAH -->
+  <!-- ============================================ -->
+  <div id="pageKepsek" class="dashboard-page" style="display:none;">
+    <nav class="dashboard-nav">
+      <div class="nav-brand">
+        <i class="fas fa-landmark"></i>
+        <span>SIMPEG<span>-TIGA</span></span>
+        <span class="admin-badge">Admin</span>
+      </div>
+      <div class="nav-user">
+        <div class="user-info">
+          <span class="user-name" id="kepsekName">—</span>
+          <span class="user-role">Kepala Sekolah</span>
+        </div>
+        <div class="user-avatar" id="kepsekAvatar">K</div>
+        <button class="nav-logout" onclick="logout()">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
+    </nav>
+
+    <div class="dashboard-content">
+      <div class="welcome-banner">
+        <div class="welcome-text">
+          <h2>Dashboard Kepala Sekolah</h2>
+          <p id="adminDate">—</p>
+        </div>
+        <div class="time-badge">
+          <i class="fas fa-clock"></i>
+          <span id="adminTime">—</span>
+          <span class="timezone">WIT</span>
+        </div>
+      </div>
+
+      <!-- STATS CARDS -->
+      <div class="admin-stats-grid">
+        <div class="stat-card-blue">
+          <div class="stat-icon"><i class="fas fa-users"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="adminTotalGuru">0</span>
+            <span class="stat-label">Total Guru Aktif</span>
+          </div>
+        </div>
+        <div class="stat-card-green">
+          <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="adminHadirHari">0</span>
+            <span class="stat-label">Hadir Hari Ini</span>
+          </div>
+        </div>
+        <div class="stat-card-red">
+          <div class="stat-icon"><i class="fas fa-user-times"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="adminAlfaBulan">0</span>
+            <span class="stat-label">Alfa Bulan Ini</span>
+          </div>
+        </div>
+        <div class="stat-card-orange">
+          <div class="stat-icon"><i class="fas fa-file-medical"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="adminPendingSick">0</span>
+            <span class="stat-label">Izin Pending</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABS ADMIN -->
+      <div class="dashboard-tabs">
+        <button class="tab-btn active" data-tab="rekap" onclick="showAdminTab('rekap')">
+          <i class="fas fa-table"></i> Rekap Kehadiran
+        </button>
+        <button class="tab-btn" data-tab="izinAdmin" onclick="showAdminTab('izinAdmin'); loadAdminSick()">
+          <i class="fas fa-file-medical"></i> Izin Masuk
+        </button>
+        <button class="tab-btn" data-tab="guru" onclick="showAdminTab('guru'); loadTeachers()">
+          <i class="fas fa-users-cog"></i> Kelola Guru
+        </button>
+        <button class="tab-btn" data-tab="log" onclick="showAdminTab('log'); loadLogs()">
+          <i class="fas fa-history"></i> Log Aktivitas
+        </button>
+      </div>
+
+      <!-- TAB REKAP -->
+      <div id="adminTabRekap" class="tab-content active">
+        <div class="form-card">
+          <div class="filter-bar">
+            <select id="adminMonth">
+              <option value="01">Januari</option>
+              <option value="02">Februari</option>
+              <option value="03">Maret</option>
+              <option value="04">April</option>
+              <option value="05">Mei</option>
+              <option value="06">Juni</option>
+              <option value="07">Juli</option>
+              <option value="08">Agustus</option>
+              <option value="09">September</option>
+              <option value="10">Oktober</option>
+              <option value="11">November</option>
+              <option value="12">Desember</option>
+            </select>
+            <select id="adminYear"></select>
+            <button class="btn-filter" onclick="loadAdminRecap()"><i class="fas fa-search"></i> Tampilkan</button>
+            <button class="btn-export" onclick="exportAdminPDF()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            <button class="btn-send" onclick="sendMonthlyReport()"><i class="fas fa-paper-plane"></i> Kirim
+              Laporan</button>
+          </div>
+          <div id="adminRecapTable">
+            <div class="empty-state"><i class="fas fa-spinner fa-spin"></i>
+              <p>Memuat...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB IZIN ADMIN -->
+      <div id="adminTabIzin" class="tab-content">
+        <div class="form-card">
+          <div class="filter-buttons">
+            <button class="filter-sick active" onclick="filterSick('pending', this)">Pending</button>
+            <button class="filter-sick" onclick="filterSick('approved', this)">Disetujui</button>
+            <button class="filter-sick" onclick="filterSick('rejected', this)">Ditolak</button>
+            <button class="filter-sick" onclick="filterSick('all', this)">Semua</button>
+          </div>
+          <div id="adminSickList">
+            <div class="empty-state"><i class="fas fa-spinner fa-spin"></i>
+              <p>Memuat...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB KELOLA GURU -->
+      <div id="adminTabGuru" class="tab-content">
+        <div class="form-card">
+          <div id="teachersList">
+            <div class="empty-state"><i class="fas fa-spinner fa-spin"></i>
+              <p>Memuat...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB LOG -->
+      <div id="adminTabLog" class="tab-content">
+        <div class="form-card">
+          <div id="logsList">
+            <div class="empty-state"><i class="fas fa-spinner fa-spin"></i>
+              <p>Memuat...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL FOTO PRESENSI -->
+  <div id="photoModal" class="modal" style="display:none;">
+    <div class="modal-content modal-photo">
+      <span class="modal-close" onclick="closePhotoModal()">&times;</span>
+      <img id="modalPhotoImg" src="">
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
