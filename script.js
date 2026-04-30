@@ -7,7 +7,7 @@
 // KONFIGURASI
 // ================================================
 // 🔴 GANTI DENGAN URL APPS SCRIPT ANDA!
-const API_URL = 'https://script.google.com/macros/s/AKfycbyZmMAto1AROajPDl_gaN6-feQ-VdV3fyBIDhpxThKB9kZojR7HjPOLItA8wto3I_L1/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwHMewr8uhk6iPNY7RXB2eu6UPXa0fMrVbpqSy0koZwuYbhVDt_XLCn2OYm-95gN-fT/exec';
 
 // State variables
 let currentUser = null;
