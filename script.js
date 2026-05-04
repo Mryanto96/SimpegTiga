@@ -1,1277 +1,962 @@
-// ================================================
-// SIMPEG-TIGA - FRONTEND JAVASCRIPT
-// Versi Fixed - Bug Registration & Tab Switching
-// ================================================
+// ============================================================
+// SISTEM ABSENSI DIGITAL - FRONTEND (GitHub Pages)
+// Versi: 5.0 - FIXED FETCH ERROR
+// ============================================================
 
-const API_URL = 'https://script.google.com/macros/s/AKfycby6VosWb5AaRz0E-1kSsjCLtM-WGm3WORdSgfHZj2l_bTT_vMAOZBev91zADLdHxgpA/exec';
+// ==================== KONFIGURASI ====================
+// GANTI DENGAN URL DEPLOY APPS SCRIPT ANDA!!!
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwYOeO1K7kNaeKFjEREA0rvIpmcgHBk1Ev9FCgMyQHcUsFI1JAWY-HhPhOLzBkyU9J6mQ/exec";
 
-// State variables
+// Session management
 let currentUser = null;
-let currentToken = null;
-let currentPhotoData = { masuk: null, pulang: null };
-let currentCameraStream = null;
-let currentLocation = { lat: null, lng: null, accuracy: null };
-let watchId = null;
+
+// Global variables
+let stream = null;
+let currentLocation = null;
+let capturedPhoto = null;
+let otpCountdownInterval = null;
 let forgotEmail = '';
-let forgotResetToken = '';
-let currentSickFilter = 'pending';
-let captchaAnswer = 0;
-let sickFileBase64 = null;
-let otpInterval = null;
+let forgotOtpVerified = false;
 
-// ================================================
-// LOADING SCREEN
-// ================================================
-function hideLoadingScreen() {
-  const overlay = document.getElementById('loadingOverlay');
-  if (overlay) overlay.classList.add('hidden');
+// ==================== UTILITY FUNCTIONS ====================
+function showMessage(elementId, type, message) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = message;
+        element.className = `message ${type}`;
+        setTimeout(() => {
+            if (element.textContent === message) {
+                element.textContent = "";
+                element.className = "message";
+            }
+        }, 5000);
+    }
 }
 
-function showLoadingScreen() {
-  const overlay = document.getElementById('loadingOverlay');
-  if (overlay) overlay.classList.remove('hidden');
+function formatDate(date) {
+    const d = new Date(date);
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-// ================================================
-// INITIALIZATION
-// ================================================
-document.addEventListener('DOMContentLoaded', function () {
-  setTimeout(hideLoadingScreen, 500);
-
-  updateDateTime();
-  setInterval(updateDateTime, 1000);
-
-  initYearSelects();
-  generateCaptcha();
-  setupOTPInputs();
-
-  // Setup navigasi form
-  const showRegisterBtn = document.getElementById('showRegisterBtn');
-  if (showRegisterBtn) {
-    showRegisterBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      showForm('register');
-    });
-  }
-
-  const showLoginBtn = document.getElementById('showLoginBtn');
-  if (showLoginBtn) {
-    showLoginBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      showForm('login');
-    });
-  }
-
-  const forgotLink = document.getElementById('forgotPasswordLink');
-  if (forgotLink) {
-    forgotLink.addEventListener('click', function (e) {
-      e.preventDefault();
-      showForm('forgot');
-    });
-  }
-
-  // Enter key support
-  document.getElementById('loginPassword') && document.getElementById('loginPassword').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') doLogin();
-  });
-
-  checkSession();
-
-  // Fallback hide loading
-  setTimeout(hideLoadingScreen, 3000);
-});
-
-// ================================================
-// UPDATE DATE TIME
-// ================================================
 function updateDateTime() {
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('id-ID', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-  const timeStr = now.toLocaleTimeString('id-ID', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
-
-  ['guruDate', 'adminDate'].forEach(function (id) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = dateStr;
-  });
-  ['guruTime', 'adminTime'].forEach(function (id) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = timeStr;
-  });
-}
-
-// ================================================
-// INIT YEAR SELECTS
-// ================================================
-function initYearSelects() {
-  const currentYear = new Date().getFullYear();
-  ['historyYear', 'adminYear'].forEach(function (id) {
-    const select = document.getElementById(id);
-    if (!select) return;
-    select.innerHTML = '';
-    for (let y = currentYear; y >= currentYear - 3; y--) {
-      const option = document.createElement('option');
-      option.value = y;
-      option.textContent = y;
-      select.appendChild(option);
+    const now = new Date();
+    const dateElement = document.getElementById('currentDate');
+    const timeElement = document.getElementById('currentTime');
+    if (dateElement) {
+        dateElement.textContent = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     }
-  });
-
-  const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-  const historyMonth = document.getElementById('historyMonth');
-  if (historyMonth) historyMonth.value = currentMonth;
-  const adminMonth = document.getElementById('adminMonth');
-  if (adminMonth) adminMonth.value = currentMonth;
+    if (timeElement) {
+        timeElement.textContent = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
 }
 
-// ================================================
-// CAPTCHA
-// ================================================
-function generateCaptcha() {
-  const a = Math.floor(Math.random() * 9) + 1;
-  const b = Math.floor(Math.random() * 9) + 1;
-  captchaAnswer = a + b;
-  const el = document.getElementById('captchaQuestion');
-  if (el) el.textContent = a + ' + ' + b + ' = ?';
-}
+// ==================== API CALLS (DIREK TANPA FETCH) ====================
 
-// ================================================
-// OTP INPUTS
-// ================================================
-function setupOTPInputs() {
-  const otpDigits = document.querySelectorAll('.otp-digit');
-  otpDigits.forEach(function (input, idx) {
-    input.addEventListener('input', function (e) {
-      // Hanya angka
-      e.target.value = e.target.value.replace(/[^0-9]/g, '');
-      if (e.target.value.length === 1 && idx < otpDigits.length - 1) {
-        otpDigits[idx + 1].focus();
-      }
-    });
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Backspace' && !e.target.value && idx > 0) {
-        otpDigits[idx - 1].focus();
-      }
-    });
-  });
-}
-
-// ================================================
-// SESSION MANAGEMENT
-// ================================================
-function checkSession() {
-  const token = localStorage.getItem('simpeg_token');
-  const userStr = localStorage.getItem('simpeg_user');
-  const expiry = localStorage.getItem('simpeg_expiry');
-
-  if (token && userStr && expiry && Date.now() < parseInt(expiry)) {
-    currentToken = token;
+// Untuk GET request - Menggunakan fetch dengan mode cors
+async function apiGet(action, params = {}) {
     try {
-      currentUser = JSON.parse(userStr);
-      applyRoleDashboard();
-    } catch (e) {
-      clearSession();
-      showAuthPage();
+        let url = `${APPS_SCRIPT_URL}?action=${action}`;
+        
+        // Tambahkan parameter tambahan
+        Object.keys(params).forEach(key => {
+            if (params[key]) {
+                url += `&${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`;
+            }
+        });
+        
+        console.log("📡 API GET:", url);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("✅ API Response:", data);
+        return data;
+        
+    } catch (error) {
+        console.error('❌ API GET Error:', error);
+        return { status: 'error', message: 'Koneksi gagal: ' + error.message };
     }
-  } else {
-    clearSession();
-    showAuthPage();
-  }
 }
 
-function saveSession(token, user, expiresIn) {
-  const expiry = Date.now() + (expiresIn * 1000);
-  localStorage.setItem('simpeg_token', token);
-  localStorage.setItem('simpeg_user', JSON.stringify(user));
-  localStorage.setItem('simpeg_expiry', String(expiry));
-  currentToken = token;
-  currentUser = user;
-}
-
-function clearSession() {
-  localStorage.removeItem('simpeg_token');
-  localStorage.removeItem('simpeg_user');
-  localStorage.removeItem('simpeg_expiry');
-  currentToken = null;
-  currentUser = null;
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-  if (currentCameraStream) {
-    currentCameraStream.getTracks().forEach(function (t) { t.stop(); });
-    currentCameraStream = null;
-  }
-}
-
-// ================================================
-// SHOW FORM - FIXED: pakai display langsung di inline style
-// ================================================
-function showForm(formName) {
-  // Sembunyikan semua container
-  const allContainers = [
-    'loginFormContainer',
-    'registerFormContainer',
-    'verifyContainer',
-    'forgotContainer'
-  ];
-
-  allContainers.forEach(function (id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-
-  // Tampilkan yang dipilih
-  const targetMap = {
-    'login': 'loginFormContainer',
-    'register': 'registerFormContainer',
-    'verify': 'verifyContainer',
-    'forgot': 'forgotContainer'
-  };
-
-  const targetId = targetMap[formName];
-  if (targetId) {
-    const el = document.getElementById(targetId);
-    if (el) el.style.display = 'block';
-  }
-
-  // Reset forgot password steps jika buka forgot
-  if (formName === 'forgot') {
-    const step1 = document.getElementById('forgotStep1');
-    const step2 = document.getElementById('forgotStep2');
-    const step3 = document.getElementById('forgotStep3');
-    if (step1) step1.style.display = 'block';
-    if (step2) step2.style.display = 'none';
-    if (step3) step3.style.display = 'none';
-
-    const forgotEmailEl = document.getElementById('forgotEmail');
-    if (forgotEmailEl) forgotEmailEl.value = '';
-
-    const forgotMsgEl = document.getElementById('forgotMessage');
-    if (forgotMsgEl) forgotMsgEl.innerHTML = '';
-  }
-}
-
-function backToLogin() {
-  showForm('login');
-}
-
-// ================================================
-// PAGE SWITCHING
-// ================================================
-function applyRoleDashboard() {
-  if (!currentUser) return;
-
-  const pageAuth = document.getElementById('pageAuth');
-  const pageGuru = document.getElementById('pageGuru');
-  const pageKepsek = document.getElementById('pageKepsek');
-
-  if (pageAuth) pageAuth.style.display = 'none';
-
-  if (currentUser.role === 'kepsek') {
-    if (pageGuru) pageGuru.style.display = 'none';
-    if (pageKepsek) pageKepsek.style.display = 'block';
-
-    const nameEl = document.getElementById('kepsekName');
-    const avatarEl = document.getElementById('kepsekAvatar');
-    if (nameEl) nameEl.textContent = currentUser.name;
-    if (avatarEl) avatarEl.textContent = currentUser.name.charAt(0).toUpperCase();
-
-    loadAdminDashboard();
-  } else {
-    if (pageKepsek) pageKepsek.style.display = 'none';
-    if (pageGuru) pageGuru.style.display = 'block';
-
-    const nameEl = document.getElementById('guruName');
-    const avatarEl = document.getElementById('guruAvatar');
-    if (nameEl) nameEl.textContent = currentUser.name;
-    if (avatarEl) avatarEl.textContent = currentUser.name.charAt(0).toUpperCase();
-
-    loadGuruDashboard();
-  }
-}
-
-function showAuthPage() {
-  const pageAuth = document.getElementById('pageAuth');
-  const pageGuru = document.getElementById('pageGuru');
-  const pageKepsek = document.getElementById('pageKepsek');
-
-  if (pageAuth) pageAuth.style.display = 'block';
-  if (pageGuru) pageGuru.style.display = 'none';
-  if (pageKepsek) pageKepsek.style.display = 'none';
-
-  showForm('login');
-}
-
-// ================================================
-// API CALL
-// ================================================
-async function callAPI(action, data) {
-  data = data || {};
-  showLoadingScreen();
-  try {
-    const payload = Object.assign({ action: action }, data);
-    if (currentToken && !data.token) payload.token = currentToken;
-
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      redirect: 'follow'
-    });
-
-    const result = await response.json();
-    hideLoadingScreen();
-    return result;
-  } catch (error) {
-    hideLoadingScreen();
-    console.error('API Error:', error);
-    return { status: 'error', message: 'Koneksi gagal. Periksa internet Anda.' };
-  }
-}
-
-// ================================================
-// TOAST & MESSAGE
-// ================================================
-function showToast(message, type) {
-  type = type || 'success';
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
-
-  const toast = document.createElement('div');
-  toast.className = 'toast toast-' + type;
-
-  const iconMap = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-info-circle' };
-  const icon = iconMap[type] || 'fa-info-circle';
-
-  toast.innerHTML = '<i class="fas ' + icon + '"></i><span>' + message + '</span>';
-  container.appendChild(toast);
-
-  setTimeout(function () {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(20px)';
-    toast.style.transition = 'all 0.3s ease';
-    setTimeout(function () { if (toast.parentNode) toast.remove(); }, 300);
-  }, 3500);
-}
-
-function showMessage(elementId, message, type) {
-  type = type || 'error';
-  const el = document.getElementById(elementId);
-  if (!el) return;
-
-  const colorMap = {
-    error: '#fef2f2',
-    success: '#f0fdf4',
-    warning: '#fffbeb'
-  };
-  const textColorMap = {
-    error: '#dc2626',
-    success: '#16a34a',
-    warning: '#d97706'
-  };
-
-  el.innerHTML = message;
-  el.style.display = 'block';
-  el.style.padding = '10px 14px';
-  el.style.borderRadius = '10px';
-  el.style.fontSize = '13px';
-  el.style.background = colorMap[type] || colorMap.error;
-  el.style.color = textColorMap[type] || textColorMap.error;
-
-  setTimeout(function () {
-    el.style.display = 'none';
-  }, 6000);
-}
-
-// ================================================
-// AUTH: LOGIN
-// ================================================
-async function doLogin() {
-  const emailEl = document.getElementById('loginEmail');
-  const passEl = document.getElementById('loginPassword');
-
-  if (!emailEl || !passEl) return;
-
-  const email = emailEl.value.trim();
-  const password = passEl.value;
-
-  if (!email || !password) {
-    showMessage('loginMessage', 'Email dan password wajib diisi', 'error');
-    return;
-  }
-
-  const result = await callAPI('login', { email: email, password: password });
-
-  if (result.status === 'success') {
-    saveSession(result.data.token, result.data.user, result.data.expires_in);
-    applyRoleDashboard();
-    showToast('Login berhasil! Selamat datang, ' + result.data.user.name.split(' ')[0] + '.', 'success');
-  } else {
-    showMessage('loginMessage', result.message, 'error');
-    if (result.unverified) {
-      setTimeout(function () { showForm('verify'); }, 2000);
+// Untuk POST request - Menggunakan fetch dengan mode cors
+async function apiPost(action, data) {
+    try {
+        const payload = { action, ...data };
+        console.log("📡 API POST:", action, payload);
+        
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log("✅ API Response:", result);
+        return result;
+        
+    } catch (error) {
+        console.error('❌ API POST Error:', error);
+        return { status: 'error', message: 'Koneksi gagal: ' + error.message };
     }
-  }
 }
 
-// ================================================
-// AUTH: REGISTER - FIXED
-// ================================================
-async function doRegister() {
-  const nameEl = document.getElementById('regName');
-  const emailEl = document.getElementById('regEmail');
-  const passEl = document.getElementById('regPassword');
-  const confirmEl = document.getElementById('regConfirm');
-  const captchaEl = document.getElementById('captchaAnswer');
-
-  if (!nameEl || !emailEl || !passEl || !confirmEl) {
-    showToast('Form tidak lengkap', 'error');
-    return;
-  }
-
-  const name = nameEl.value.trim();
-  const email = emailEl.value.trim();
-  const password = passEl.value;
-  const confirm = confirmEl.value;
-  const captcha = captchaEl ? parseInt(captchaEl.value) : -1;
-
-  // Ambil role yang dipilih
-  let selectedRole = 'guru';
-  const roleRadios = document.querySelectorAll('input[name="regRole"]');
-  roleRadios.forEach(function (r) {
-    if (r.checked) selectedRole = r.value;
-  });
-
-  // Validasi
-  if (!name) { showMessage('registerMessage', 'Nama lengkap wajib diisi', 'error'); return; }
-  if (!email) { showMessage('registerMessage', 'Email wajib diisi', 'error'); return; }
-  if (!password) { showMessage('registerMessage', 'Password wajib diisi', 'error'); return; }
-  if (password.length < 8) { showMessage('registerMessage', 'Password minimal 8 karakter', 'error'); return; }
-  if (password !== confirm) { showMessage('registerMessage', 'Konfirmasi password tidak cocok', 'error'); return; }
-  if (captcha !== captchaAnswer) {
-    showMessage('registerMessage', 'Jawaban captcha salah', 'error');
-    generateCaptcha();
-    if (captchaEl) captchaEl.value = '';
-    return;
-  }
-
-  const result = await callAPI('register', {
-    name: name,
-    email: email,
-    password: password,
-    confirm_password: confirm,
-    role: selectedRole
-  });
-
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-
-    const verifyMsg = document.getElementById('verifyMessage');
-    if (verifyMsg) {
-      verifyMsg.innerHTML = 'Link aktivasi telah dikirim ke <strong>' + email + '</strong>.<br>Silakan cek inbox atau folder spam.';
-    }
-
-    showForm('verify');
-  } else {
-    showMessage('registerMessage', result.message, 'error');
-  }
-}
-
-async function resendActivation() {
-  const email = prompt('Masukkan email yang terdaftar:');
-  if (!email) return;
-
-  const result = await callAPI('resend_activation', { email: email });
-  showToast(result.message, result.status === 'success' ? 'success' : 'error');
-}
-
-async function manualActivate() {
-  const tokenEl = document.getElementById('manualToken');
-  if (!tokenEl) return;
-
-  const token = tokenEl.value.trim();
-  if (!token) { showToast('Masukkan token aktivasi terlebih dahulu', 'error'); return; }
-
-  const result = await callAPI('activate', { token: token });
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-    setTimeout(function () { showForm('login'); }, 1500);
-  } else {
-    showToast(result.message, 'error');
-  }
-}
-
-// ================================================
-// AUTH: FORGOT PASSWORD
-// ================================================
-async function sendOTP() {
-  const emailEl = document.getElementById('forgotEmail');
-  if (!emailEl) return;
-
-  const email = emailEl.value.trim();
-  if (!email) { showMessage('forgotMessage', 'Masukkan email Anda', 'error'); return; }
-
-  forgotEmail = email;
-  const result = await callAPI('forgot_password', { email: email });
-
-  if (result.status === 'success') {
-    showMessage('forgotMessage', result.message, 'success');
-    document.getElementById('forgotStep1').style.display = 'none';
-    document.getElementById('forgotStep2').style.display = 'block';
-    startOTPTimer(15 * 60);
-  } else {
-    showMessage('forgotMessage', result.message, 'error');
-  }
-}
-
-function startOTPTimer(seconds) {
-  if (otpInterval) clearInterval(otpInterval);
-  const timerEl = document.getElementById('otpTimer');
-  if (!timerEl) return;
-
-  let remaining = seconds;
-  otpInterval = setInterval(function () {
-    remaining--;
-    const mins = Math.floor(remaining / 60);
-    const secs = remaining % 60;
-    timerEl.textContent = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
-    if (remaining <= 0) {
-      clearInterval(otpInterval);
-      timerEl.textContent = '00:00';
-    }
-  }, 1000);
-}
-
-async function verifyOTP() {
-  const otpDigits = document.querySelectorAll('.otp-digit');
-  let otp = '';
-  otpDigits.forEach(function (d) { otp += d.value; });
-
-  if (otp.length !== 6) {
-    showMessage('forgotMessage', 'Masukkan 6 digit OTP', 'error');
-    return;
-  }
-
-  const result = await callAPI('verify_otp', { email: forgotEmail, otp: otp });
-
-  if (result.status === 'success') {
-    forgotResetToken = result.data.reset_token;
-    if (otpInterval) clearInterval(otpInterval);
-    document.getElementById('forgotStep2').style.display = 'none';
-    document.getElementById('forgotStep3').style.display = 'block';
-    showMessage('forgotMessage', 'OTP valid! Buat password baru.', 'success');
-  } else {
-    showMessage('forgotMessage', result.message, 'error');
-  }
-}
-
-async function resendOTP() {
-  const result = await callAPI('forgot_password', { email: forgotEmail });
-  if (result.status === 'success') {
-    showMessage('forgotMessage', result.message, 'success');
-    if (otpInterval) clearInterval(otpInterval);
-    startOTPTimer(15 * 60);
-  } else {
-    showMessage('forgotMessage', result.message, 'error');
-  }
-}
-
-async function resetPassword() {
-  const newPassEl = document.getElementById('newPassword');
-  const confirmPassEl = document.getElementById('confirmNewPassword');
-  if (!newPassEl || !confirmPassEl) return;
-
-  const newPass = newPassEl.value;
-  const confirmPass = confirmPassEl.value;
-
-  if (!newPass) { showMessage('forgotMessage', 'Password baru wajib diisi', 'error'); return; }
-  if (newPass.length < 8) { showMessage('forgotMessage', 'Password minimal 8 karakter', 'error'); return; }
-  if (newPass !== confirmPass) { showMessage('forgotMessage', 'Konfirmasi password tidak cocok', 'error'); return; }
-
-  const result = await callAPI('reset_password', {
-    email: forgotEmail,
-    reset_token: forgotResetToken,
-    new_password: newPass,
-    confirm_password: confirmPass
-  });
-
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-    setTimeout(function () { showForm('login'); }, 1500);
-  } else {
-    showMessage('forgotMessage', result.message, 'error');
-  }
-}
-
-// ================================================
-// LOGOUT
-// ================================================
-async function logout() {
-  await callAPI('logout', {});
-  clearSession();
-  showAuthPage();
-  showToast('Logout berhasil', 'success');
-}
-
-// ================================================
-// GEOLOCATION
-// ================================================
-function startGeolocation() {
-  if (!navigator.geolocation) {
-    updateLocationUI('error', 'Browser tidak mendukung GPS');
-    return;
-  }
-
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-
-  watchId = navigator.geolocation.watchPosition(
-    function (position) {
-      currentLocation = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        accuracy: position.coords.accuracy
-      };
-      updateLocationUI('ok', 'Lokasi terdeteksi (±' + Math.round(currentLocation.accuracy) + 'm)');
-      checkAbsenButtons();
-    },
-    function (error) {
-      const msgs = {
-        1: 'Izin lokasi ditolak. Aktifkan GPS di browser.',
-        2: 'Lokasi tidak tersedia.',
-        3: 'Timeout. Coba lagi.'
-      };
-      updateLocationUI('error', msgs[error.code] || 'Gagal mendapatkan lokasi');
-    },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-  );
-}
-
-function updateLocationUI(status, message) {
-  ['locMasuk', 'locPulang'].forEach(function (id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (status === 'ok') {
-      el.innerHTML = '<div class="loc-ok"><i class="fas fa-map-marker-alt"></i> ' + message + '</div>';
-    } else if (status === 'error') {
-      el.innerHTML = '<div class="loc-error"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>';
+// ==================== TEST KONEKSI ====================
+async function testConnection() {
+    console.log("🔌 Testing connection to API...");
+    console.log("📡 URL:", APPS_SCRIPT_URL);
+    
+    const result = await apiGet('test');
+    
+    if (result.status === 'success') {
+        console.log("✅ API Connected successfully!");
+        return true;
     } else {
-      el.innerHTML = '<div class="loc-loading"><i class="fas fa-spinner fa-spin"></i> Mendeteksi lokasi...</div>';
+        console.error("❌ API Connection Failed:", result);
+        return false;
     }
-  });
 }
 
-function checkAbsenButtons() {
-  const hasLoc = !!(currentLocation.lat && currentLocation.lng);
-  const btnMasuk = document.getElementById('btnAbsenMasuk');
-  const btnPulang = document.getElementById('btnAbsenPulang');
-  if (btnMasuk) btnMasuk.disabled = !(hasLoc && currentPhotoData.masuk);
-  if (btnPulang) btnPulang.disabled = !(hasLoc && currentPhotoData.pulang);
-}
-
-// ================================================
-// CAMERA
-// ================================================
-async function startCamera(type) {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('Browser tidak mendukung kamera', 'error');
-    return;
-  }
-
-  try {
-    if (currentCameraStream) {
-      currentCameraStream.getTracks().forEach(function (t) { t.stop(); });
+// ==================== AUTHENTICATION ====================
+async function handleLogin(event) {
+    event.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    if (!email || !password) {
+        showMessage('loginMessage', 'error', 'Harap isi email dan password');
+        return;
     }
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false
-    });
-
-    currentCameraStream = stream;
-    const suffix = type === 'masuk' ? 'Masuk' : 'Pulang';
-
-    const video = document.getElementById('video' + suffix);
-    if (video) { video.srcObject = stream; video.style.display = 'block'; }
-
-    const overlay = document.getElementById('cameraOverlay' + suffix);
-    if (overlay) overlay.style.display = 'none';
-
-    const startBtn = document.getElementById('btnStartCam' + suffix);
-    const captureBtn = document.getElementById('btnCapture' + suffix);
-    const stopBtn = document.getElementById('btnStop' + suffix);
-
-    if (startBtn) startBtn.style.display = 'none';
-    if (captureBtn) captureBtn.style.display = 'inline-flex';
-    if (stopBtn) stopBtn.style.display = 'inline-flex';
-
-  } catch (err) {
-    showToast('Gagal akses kamera: ' + err.message, 'error');
-  }
-}
-
-function stopCamera(type) {
-  if (currentCameraStream) {
-    currentCameraStream.getTracks().forEach(function (t) { t.stop(); });
-    currentCameraStream = null;
-  }
-
-  const suffix = type === 'masuk' ? 'Masuk' : 'Pulang';
-
-  const video = document.getElementById('video' + suffix);
-  if (video) { video.srcObject = null; video.style.display = 'none'; }
-
-  const overlay = document.getElementById('cameraOverlay' + suffix);
-  if (overlay) overlay.style.display = 'flex';
-
-  const startBtn = document.getElementById('btnStartCam' + suffix);
-  const captureBtn = document.getElementById('btnCapture' + suffix);
-  const stopBtn = document.getElementById('btnStop' + suffix);
-
-  if (startBtn) startBtn.style.display = 'inline-flex';
-  if (captureBtn) captureBtn.style.display = 'none';
-  if (stopBtn) stopBtn.style.display = 'none';
-}
-
-function startCountdown(type) {
-  let count = 3;
-  const suffix = type === 'masuk' ? 'Masuk' : 'Pulang';
-  const countdownEl = document.getElementById('countdown' + suffix);
-  if (!countdownEl) return;
-
-  countdownEl.style.display = 'flex';
-  countdownEl.textContent = count;
-
-  const interval = setInterval(function () {
-    count--;
-    if (count > 0) {
-      countdownEl.textContent = count;
+    
+    showMessage('loginMessage', 'neutral', 'Memproses...');
+    
+    const result = await apiPost('login', { email, password });
+    
+    if (result.status === 'success') {
+        currentUser = result.data;
+        sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+        sessionStorage.setItem('sessionToken', result.data.sessionToken);
+        
+        showMessage('loginMessage', 'success', 'Login berhasil! Mengalihkan...');
+        
+        setTimeout(() => {
+            if (currentUser.role === 'guru') {
+                window.location.href = 'dashboard-guru.html';
+            } else if (currentUser.role === 'kepsek') {
+                window.location.href = 'dashboard-kepsek.html';
+            } else if (currentUser.role === 'admin') {
+                window.location.href = 'dashboard-admin.html';
+            } else {
+                window.location.href = 'index.html';
+            }
+        }, 1000);
     } else {
-      clearInterval(interval);
-      countdownEl.style.display = 'none';
-      capturePhoto(type);
+        showMessage('loginMessage', 'error', result.message);
+        if (result.unverified) {
+            const resendContainer = document.getElementById('resendVerificationContainer');
+            if (resendContainer) resendContainer.style.display = 'block';
+        }
     }
-  }, 1000);
 }
 
-function capturePhoto(type) {
-  const suffix = type === 'masuk' ? 'Masuk' : 'Pulang';
-  const video = document.getElementById('video' + suffix);
-  const canvas = document.getElementById('canvas' + suffix);
-  if (!video || !canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  canvas.width = video.videoWidth || 640;
-  canvas.height = video.videoHeight || 480;
-  ctx.drawImage(video, 0, 0);
-
-  // Timestamp overlay
-  const now = new Date();
-  const timestamp = now.toLocaleString('id-ID', { timeZone: 'Asia/Jayapura', hour12: false });
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
-  ctx.fillStyle = '#fff';
-  ctx.font = '12px monospace';
-  ctx.fillText(timestamp + ' WIT', 8, canvas.height - 10);
-
-  currentPhotoData[type] = canvas.toDataURL('image/jpeg', 0.8);
-
-  stopCamera(type);
-  checkAbsenButtons();
-
-  const preview = document.getElementById('preview' + suffix);
-  const previewImg = document.getElementById('preview' + suffix + 'Img');
-  if (previewImg) previewImg.src = currentPhotoData[type];
-  if (preview) preview.style.display = 'block';
-
-  const cameraSection = document.getElementById('cameraSection' + suffix);
-  if (cameraSection) cameraSection.style.display = 'none';
-
-  showToast('Foto selfi ' + type + ' berhasil diambil', 'success');
+async function handleRegister(event) {
+    event.preventDefault();
+    
+    const nama = document.getElementById('regNama').value;
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const roleSelect = document.getElementById('regRole');
+    const role = roleSelect ? roleSelect.value : 'guru';
+    
+    if (!nama || !email || !password) {
+        showMessage('registerMessage', 'error', 'Harap isi semua field');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showMessage('registerMessage', 'error', 'Password minimal 6 karakter');
+        return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showMessage('registerMessage', 'error', 'Format email tidak valid');
+        return;
+    }
+    
+    showMessage('registerMessage', 'neutral', 'Mendaftarkan...');
+    
+    const result = await apiPost('signup', { nama, email, password, role });
+    
+    if (result.status === 'success') {
+        showMessage('registerMessage', 'success', result.message);
+        
+        document.getElementById('regNama').value = '';
+        document.getElementById('regEmail').value = '';
+        document.getElementById('regPassword').value = '';
+        
+        setTimeout(() => {
+            const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
+            if (loginTab) {
+                loginTab.click();
+            }
+            document.getElementById('loginEmail').value = email;
+        }, 2000);
+    } else {
+        showMessage('registerMessage', 'error', result.message);
+    }
 }
 
-function retakePhoto(type) {
-  currentPhotoData[type] = null;
-  const suffix = type === 'masuk' ? 'Masuk' : 'Pulang';
-
-  const preview = document.getElementById('preview' + suffix);
-  if (preview) preview.style.display = 'none';
-
-  const cameraSection = document.getElementById('cameraSection' + suffix);
-  if (cameraSection) cameraSection.style.display = 'block';
-
-  const startBtn = document.getElementById('btnStartCam' + suffix);
-  const captureBtn = document.getElementById('btnCapture' + suffix);
-  const stopBtn = document.getElementById('btnStop' + suffix);
-  const overlay = document.getElementById('cameraOverlay' + suffix);
-
-  if (startBtn) startBtn.style.display = 'inline-flex';
-  if (captureBtn) captureBtn.style.display = 'none';
-  if (stopBtn) stopBtn.style.display = 'none';
-  if (overlay) overlay.style.display = 'flex';
-
-  checkAbsenButtons();
+function handleLogout() {
+    sessionStorage.removeItem('currentUser');
+    sessionStorage.removeItem('sessionToken');
+    currentUser = null;
+    window.location.href = 'index.html';
 }
 
-// ================================================
-// PRESENSI SUBMIT
-// ================================================
-async function submitAbsen(type) {
-  if (!currentPhotoData[type]) { showToast('Ambil foto selfi terlebih dahulu', 'error'); return; }
-  if (!currentLocation.lat) { showToast('Tunggu deteksi lokasi selesai', 'error'); return; }
-
-  const action = type === 'masuk' ? 'checkin' : 'checkout';
-  const result = await callAPI(action, {
-    photo_base64: currentPhotoData[type],
-    lat: currentLocation.lat,
-    lng: currentLocation.lng
-  });
-
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-    currentPhotoData[type] = null;
-
-    const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const suffix = type === 'masuk' ? 'Masuk' : 'Pulang';
-    const statusEl = document.getElementById('status' + suffix);
-    const btn = document.getElementById('btnAbsen' + suffix);
-
-    if (statusEl) statusEl.innerHTML = '<span class="badge success"><i class="fas fa-check"></i> Sudah Absen ' + suffix + ' (' + timeNow + ')</span>';
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-check"></i> Sudah ' + suffix; }
-
-    loadGuruDashboard();
-  } else {
-    showToast(result.message, 'error');
-  }
+function checkAuth() {
+    const stored = sessionStorage.getItem('currentUser');
+    if (stored) {
+        currentUser = JSON.parse(stored);
+        return true;
+    }
+    return false;
 }
 
-// ================================================
-// GURU DASHBOARD
-// ================================================
-async function loadGuruDashboard() {
-  startGeolocation();
-
-  const hour = new Date().getHours();
-  let greeting = 'Selamat Siang';
-  if (hour < 11) greeting = 'Selamat Pagi';
-  else if (hour < 15) greeting = 'Selamat Siang';
-  else if (hour < 18) greeting = 'Selamat Sore';
-  else greeting = 'Selamat Malam';
-
-  const greetingEl = document.getElementById('guruGreeting');
-  if (greetingEl && currentUser) {
-    greetingEl.textContent = greeting + ', ' + currentUser.name.split(' ')[0] + '!';
-  }
-
-  const result = await callAPI('get_dashboard_stats', {});
-
-  if (result.status === 'success') {
-    const data = result.data;
-    if (data.month_summary) {
-      const fields = { statHadir: data.month_summary.total_hadir, statTerlambat: data.month_summary.total_terlambat, statSakit: data.month_summary.total_sakit, statAlfa: data.month_summary.total_alfa };
-      Object.keys(fields).forEach(function (id) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = fields[id] || 0;
-      });
+// ==================== CAMERA & GEOLOCATION ====================
+async function initCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const video = document.getElementById('video');
+        if (video) {
+            video.srcObject = stream;
+            await video.play();
+        }
+        return true;
+    } catch (error) {
+        console.error('Camera error:', error);
+        showMessage('attendanceMessage', 'error', 'Tidak dapat mengakses kamera.');
+        return false;
     }
-
-    if (data.today_attendance) {
-      const att = data.today_attendance;
-      if (att.checkin_time) {
-        const statusMasuk = document.getElementById('statusMasuk');
-        const btnMasuk = document.getElementById('btnAbsenMasuk');
-        if (statusMasuk) statusMasuk.innerHTML = '<span class="badge success"><i class="fas fa-check"></i> Masuk: ' + att.checkin_time + '</span>';
-        if (btnMasuk) { btnMasuk.disabled = true; btnMasuk.innerHTML = '<i class="fas fa-check"></i> Sudah Masuk'; }
-      }
-      if (att.checkout_time) {
-        const statusPulang = document.getElementById('statusPulang');
-        const btnPulang = document.getElementById('btnAbsenPulang');
-        if (statusPulang) statusPulang.innerHTML = '<span class="badge success"><i class="fas fa-check"></i> Pulang: ' + att.checkout_time + '</span>';
-        if (btnPulang) { btnPulang.disabled = true; btnPulang.innerHTML = '<i class="fas fa-check"></i> Sudah Pulang'; }
-      }
-    }
-
-    if (data.checkin_window) {
-      const el = document.getElementById('windowMasuk');
-      if (el) el.textContent = data.checkin_window.start + ' – ' + data.checkin_window.end + ' WIT';
-    }
-    if (data.checkout_window) {
-      const el = document.getElementById('windowPulang');
-      if (el) el.textContent = data.checkout_window.start + ' – ' + data.checkout_window.end + ' WIT';
-    }
-  }
-
-  await loadSickList();
-  await loadHistory();
 }
 
-async function loadSickList() {
-  const result = await callAPI('get_sick_reports', {});
-  const container = document.getElementById('sickList');
-  if (!container) return;
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+}
 
-  if (result.status === 'success' && result.data.reports && result.data.reports.length > 0) {
-    let html = '';
-    result.data.reports.forEach(function (r) {
-      const statusMap = { approved: ['Disetujui', 'success'], rejected: ['Ditolak', 'danger'], pending: ['Menunggu', 'warning'] };
-      const [statusText, statusClass] = statusMap[r.status] || ['Unknown', 'warning'];
-      html += '<div class="sick-item ' + r.status + '">';
-      html += '<div class="sick-header"><span class="sick-date"><i class="fas fa-calendar"></i> ' + r.date + '</span>';
-      html += '<span class="sick-status status-badge status-' + statusClass + '">' + statusText + '</span></div>';
-      html += '<div class="sick-reason">' + r.reason_detail + '</div>';
-      if (r.proof_url) html += '<div class="sick-proof"><a href="' + r.proof_url + '" target="_blank"><i class="fas fa-image"></i> Lihat Bukti</a></div>';
-      html += '</div>';
+function capturePhoto() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    if (!video || !canvas) return;
+    
+    const context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const photoData = canvas.toDataURL('image/jpeg', 0.8);
+    capturedPhoto = photoData;
+    
+    const preview = document.getElementById('photoPreview');
+    const previewImg = document.getElementById('previewImg');
+    if (preview && previewImg) {
+        previewImg.src = photoData;
+        preview.style.display = 'block';
+    }
+    
+    const cameraContainer = document.querySelector('.camera-container');
+    if (cameraContainer) cameraContainer.style.display = 'none';
+    
+    return photoData;
+}
+
+function retakePhoto() {
+    capturedPhoto = null;
+    const preview = document.getElementById('photoPreview');
+    const cameraContainer = document.querySelector('.camera-container');
+    if (preview) preview.style.display = 'none';
+    if (cameraContainer) cameraContainer.style.display = 'block';
+    const captureBtn = document.getElementById('captureBtn');
+    if (captureBtn) captureBtn.disabled = false;
+}
+
+async function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Geolocation tidak didukung'));
+            return;
+        }
+        
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                resolve({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    accuracy: position.coords.accuracy
+                });
+            },
+            (error) => {
+                let message = 'Gagal mendapatkan lokasi. ';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        message += 'Izin lokasi ditolak.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        message += 'Lokasi tidak tersedia.';
+                        break;
+                    case error.TIMEOUT:
+                        message += 'Waktu habis.';
+                        break;
+                }
+                reject(new Error(message));
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
     });
-    container.innerHTML = html;
-  } else {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Belum ada laporan izin/sakit</p></div>';
-  }
+}
+
+// ==================== ATTENDANCE FUNCTIONS ====================
+async function loadTodayStatus() {
+    if (!currentUser) return;
+    
+    const result = await apiGet('checkTodayAttendance', { email: currentUser.email });
+    
+    if (result.status === 'success') {
+        const statusDiv = document.getElementById('statusDetails');
+        const checkInBtn = document.getElementById('checkInBtn');
+        const checkOutBtn = document.getElementById('checkOutBtn');
+        
+        if (statusDiv) {
+            if (result.data.hasCheckedIn) {
+                statusDiv.innerHTML = `
+                    <p>✅ Sudah absen masuk pada: ${result.data.checkInTime}</p>
+                    ${result.data.hasCheckedOut ? `<p>✅ Sudah absen pulang pada: ${result.data.checkOutTime}</p>` : '<p>⏰ Belum absen pulang</p>'}
+                `;
+                if (checkInBtn) checkInBtn.disabled = true;
+                if (checkOutBtn && !result.data.hasCheckedOut) checkOutBtn.disabled = false;
+                else if (checkOutBtn && result.data.hasCheckedOut) checkOutBtn.disabled = true;
+            } else {
+                statusDiv.innerHTML = '<p>📝 Belum melakukan absen hari ini</p>';
+                if (checkInBtn) checkInBtn.disabled = false;
+            }
+        }
+    }
+}
+
+async function loadTodaySchedule() {
+    const result = await apiGet('getSettings');
+    if (result.status === 'success') {
+        const infoDiv = document.getElementById('todayInfo');
+        if (infoDiv) {
+            const now = new Date();
+            const day = now.getDay();
+            let scheduleText = '';
+            
+            if (day === 0 || day === 6) {
+                scheduleText = '<p>🏖️ Hari libur akhir pekan</p>';
+            } else if (day >= 1 && day <= 3) {
+                scheduleText = `
+                    <p>📅 Senin - Rabu</p>
+                    <p>⏰ Absen Masuk: ${result.data.senin_rabu_masuk_mulai?.value || '07:30'} - ${result.data.senin_rabu_masuk_selesai?.value || '08:00'}</p>
+                    <p>⏰ Absen Pulang: ${result.data.senin_rabu_pulang_mulai?.value || '12:00'} - ${result.data.senin_rabu_pulang_selesai?.value || '12:15'}</p>
+                `;
+            } else if (day === 4 || day === 5) {
+                scheduleText = `
+                    <p>📅 Kamis - Jumat</p>
+                    <p>⏰ Absen Masuk: ${result.data.kamis_jumat_masuk_mulai?.value || '07:30'} - ${result.data.kamis_jumat_masuk_selesai?.value || '08:00'}</p>
+                    <p>⏰ Absen Pulang: ${result.data.kamis_jumat_pulang_mulai?.value || '11:30'} - ${result.data.kamis_jumat_pulang_selesai?.value || '11:45'}</p>
+                `;
+            }
+            infoDiv.innerHTML = scheduleText;
+        }
+    }
 }
 
 async function loadHistory() {
-  const monthEl = document.getElementById('historyMonth');
-  const yearEl = document.getElementById('historyYear');
-  const month = monthEl ? monthEl.value : (new Date().getMonth() + 1).toString().padStart(2, '0');
-  const year = yearEl ? yearEl.value : new Date().getFullYear();
-
-  const result = await callAPI('get_attendance_history', { month: month, year: year });
-  const container = document.getElementById('historyTable');
-  if (!container) return;
-
-  if (result.status === 'success' && result.data.records && result.data.records.length > 0) {
-    let rows = '';
-    result.data.records.forEach(function (r) {
-      const statusClassMap = { Hadir: 'hadir', Terlambat: 'terlambat', Sakit: 'sakit', Alfa: 'alfa' };
-      const cls = 'status-' + (statusClassMap[r.status] || 'alfa');
-      rows += '<tr><td>' + r.date + '</td><td>' + (r.checkin_time || '-') + '</td><td>' + (r.checkout_time || '-') + '</td>';
-      rows += '<td><span class="status-badge ' + cls + '">' + (r.status || '-') + '</span></td>';
-      rows += '<td>';
-      if (r.checkin_photo_url) rows += '<button class="btn-icon" onclick="showPhoto(\'' + r.checkin_photo_url + '\')"><i class="fas fa-camera"></i></button> ';
-      if (r.checkout_photo_url) rows += '<button class="btn-icon" onclick="showPhoto(\'' + r.checkout_photo_url + '\')"><i class="fas fa-camera"></i></button>';
-      if (!r.checkin_photo_url && !r.checkout_photo_url) rows += '-';
-      rows += '</td></tr>';
-    });
-    container.innerHTML = '<div class="table-container"><table><thead><tr><th>Tanggal</th><th>Masuk</th><th>Pulang</th><th>Status</th><th>Foto</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-  } else {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-times"></i><p>Belum ada data kehadiran bulan ini</p></div>';
-  }
-}
-
-async function submitSick() {
-  const date = document.getElementById('sickDate') ? document.getElementById('sickDate').value : '';
-  const reason = document.getElementById('sickReason') ? document.getElementById('sickReason').value.trim() : '';
-
-  if (!date || !reason) { showToast('Tanggal dan alasan wajib diisi', 'error'); return; }
-
-  const result = await callAPI('submit_sick', {
-    date: date,
-    reason_detail: reason,
-    proof_base64: sickFileBase64 || ''
-  });
-
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-    document.getElementById('sickReason').value = '';
-    const fileEl = document.getElementById('sickFile');
-    if (fileEl) fileEl.value = '';
-    const previewEl = document.getElementById('sickPreview');
-    if (previewEl) previewEl.style.display = 'none';
-    const fileNameEl = document.getElementById('sickFileName');
-    if (fileNameEl) fileNameEl.textContent = 'Belum ada file';
-    sickFileBase64 = null;
-    await loadSickList();
-  } else {
-    showToast(result.message, 'error');
-  }
-}
-
-function previewSickFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const fileNameEl = document.getElementById('sickFileName');
-  if (fileNameEl) fileNameEl.textContent = file.name;
-
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    sickFileBase64 = e.target.result;
-    const previewImg = document.getElementById('sickPreviewImg');
-    const preview = document.getElementById('sickPreview');
-    if (previewImg) previewImg.src = e.target.result;
-    if (preview) preview.style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-}
-
-// ================================================
-// KEPSEK DASHBOARD
-// ================================================
-async function loadAdminDashboard() {
-  await loadAdminStats();
-  await loadAdminRecap();
-  await loadAdminSick();
-  await loadTeachers();
-  await loadLogs();
-}
-
-async function loadAdminStats() {
-  const result = await callAPI('get_dashboard_stats', {});
-  if (result.status === 'success') {
-    const d = result.data;
-    const map = {
-      adminTotalGuru: d.total_guru_aktif,
-      adminHadirHari: d.hadir_hari_ini,
-      adminAlfaBulan: d.alfa_bulan_ini,
-      adminPendingSick: d.pending_sick
-    };
-    Object.keys(map).forEach(function (id) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = map[id] || 0;
-    });
-  }
-}
-
-async function loadAdminRecap() {
-  const monthEl = document.getElementById('adminMonth');
-  const yearEl = document.getElementById('adminYear');
-  const month = monthEl ? monthEl.value : (new Date().getMonth() + 1).toString().padStart(2, '0');
-  const year = yearEl ? yearEl.value : new Date().getFullYear();
-
-  const result = await callAPI('get_all_attendance', { month: month, year: year });
-  const container = document.getElementById('adminRecapTable');
-  if (!container) return;
-
-  if (result.status === 'success' && result.data.report && result.data.report.length > 0) {
-    let rows = '';
-    result.data.report.forEach(function (r) {
-      const alfaClass = (r.summary.total_alfa >= 3) ? 'style="color:var(--danger);font-weight:700;"' : '';
-      rows += '<tr><td><strong>' + r.full_name + '</strong></td>';
-      rows += '<td>' + r.summary.total_hadir + '</td>';
-      rows += '<td>' + r.summary.total_terlambat + '</td>';
-      rows += '<td>' + r.summary.total_sakit + '</td>';
-      rows += '<td ' + alfaClass + '>' + r.summary.total_alfa + '</td></tr>';
-    });
-    container.innerHTML = '<div class="table-container"><table><thead><tr><th>Nama Guru</th><th>Hadir</th><th>Terlambat</th><th>Sakit</th><th>Alfa</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-  } else {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-chart-line"></i><p>Belum ada data</p></div>';
-  }
-}
-
-async function loadAdminSick() {
-  const result = await callAPI('get_sick_reports', {});
-  const container = document.getElementById('adminSickList');
-  if (!container) return;
-
-  if (result.status === 'success' && result.data.reports && result.data.reports.length > 0) {
-    let filtered = result.data.reports;
-    if (currentSickFilter !== 'all') {
-      filtered = filtered.filter(function (r) { return r.status === currentSickFilter; });
+    const month = document.getElementById('historyMonth')?.value;
+    const year = document.getElementById('historyYear')?.value;
+    
+    if (!month || !year) return;
+    
+    const result = await apiGet('getAttendanceHistory', { email: currentUser.email, month, year });
+    
+    const tbody = document.getElementById('historyBody');
+    if (tbody) {
+        if (result.status === 'success' && result.data.length > 0) {
+            tbody.innerHTML = result.data.map(record => `
+                <tr>
+                    <td>${formatDate(record.tanggal)}</td>
+                    <td>${record.checkIn || '-'}</td>
+                    <td>${record.checkOut || '-'}</td>
+                    <td>${record.lokasi || '-'}</td>
+                    <td><span class="status-badge success">${record.status || 'Hadir'}</span></td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5">Belum ada data absensi</td></tr>';
+        }
     }
+}
 
-    let html = '';
-    filtered.forEach(function (r) {
-      html += '<div class="sick-item ' + r.status + '">';
-      html += '<div class="sick-header"><span class="sick-user"><i class="fas fa-user"></i> ' + (r.full_name || r.user_id) + '</span>';
-      html += '<span class="sick-date"><i class="fas fa-calendar"></i> ' + r.date + '</span></div>';
-      html += '<div class="sick-reason"><strong>Alasan:</strong> ' + r.reason_detail + '</div>';
-      if (r.proof_url) html += '<div class="sick-proof"><a href="' + r.proof_url + '" target="_blank"><i class="fas fa-image"></i> Lihat Bukti</a></div>';
-      html += '<div class="sick-actions">';
-      if (r.status === 'pending') {
-        html += '<button class="btn-sm-success" onclick="approveSick(\'' + r.id + '\', \'approve\')"><i class="fas fa-check"></i> Setujui</button>';
-        html += '<button class="btn-sm-danger" onclick="approveSick(\'' + r.id + '\', \'reject\')"><i class="fas fa-times"></i> Tolak</button>';
-      } else {
-        const [sText, sClass] = r.status === 'approved' ? ['Disetujui', 'success'] : ['Ditolak', 'danger'];
-        html += '<span class="status-badge status-' + sClass + '">' + sText + '</span>';
-      }
-      html += '</div></div>';
+async function handleCheckIn() {
+    if (!capturedPhoto) {
+        showMessage('attendanceMessage', 'error', 'Harap ambil foto selfie terlebih dahulu');
+        return;
+    }
+    
+    if (!currentLocation) {
+        showMessage('attendanceMessage', 'error', 'Harap dapatkan lokasi Anda terlebih dahulu');
+        return;
+    }
+    
+    showMessage('attendanceMessage', 'neutral', 'Memproses absen masuk...');
+    
+    const result = await apiPost('checkIn', {
+        email: currentUser.email,
+        photo: capturedPhoto,
+        lat: currentLocation.lat,
+        lng: currentLocation.lng
     });
-    container.innerHTML = html || '<div class="empty-state"><i class="fas fa-inbox"></i><p>Tidak ada data</p></div>';
-  } else {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Belum ada laporan izin</p></div>';
-  }
+    
+    if (result.status === 'success') {
+        showMessage('attendanceMessage', 'success', result.message);
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+    } else {
+        showMessage('attendanceMessage', 'error', result.message);
+    }
 }
 
-function filterSick(filter, btn) {
-  currentSickFilter = filter;
-  document.querySelectorAll('.filter-sick').forEach(function (b) { b.classList.remove('active'); });
-  btn.classList.add('active');
-  loadAdminSick();
-}
-
-async function approveSick(reportId, action) {
-  const result = await callAPI('approve_sick', { report_id: reportId, action: action });
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-    await loadAdminSick();
-    await loadAdminStats();
-  } else {
-    showToast(result.message, 'error');
-  }
-}
-
-async function loadTeachers() {
-  const result = await callAPI('get_users', {});
-  const container = document.getElementById('teachersList');
-  if (!container) return;
-
-  if (result.status === 'success' && result.data.users && result.data.users.length > 0) {
-    let rows = '';
-    result.data.users.forEach(function (u) {
-      const isActive = u.is_active === 'true';
-      rows += '<tr>';
-      rows += '<td><strong>' + u.full_name + '</strong></td>';
-      rows += '<td>' + u.email + '</td>';
-      rows += '<td><span class="role-badge">' + (u.role === 'kepsek' ? 'Kepala Sekolah' : 'Guru') + '</span></td>';
-      rows += '<td><span class="status-badge ' + (isActive ? 'status-hadir' : 'status-alfa') + '">' + (isActive ? 'Aktif' : 'Nonaktif') + '</span></td>';
-      rows += '<td><button class="btn-icon" onclick="toggleUser(\'' + u.id + '\', \'' + u.is_active + '\')"><i class="fas ' + (isActive ? 'fa-ban' : 'fa-check-circle') + '"></i></button></td>';
-      rows += '</tr>';
+async function handleCheckOut() {
+    if (!capturedPhoto) {
+        showMessage('attendanceMessage', 'error', 'Harap ambil foto selfie terlebih dahulu');
+        return;
+    }
+    
+    if (!currentLocation) {
+        showMessage('attendanceMessage', 'error', 'Harap dapatkan lokasi Anda terlebih dahulu');
+        return;
+    }
+    
+    showMessage('attendanceMessage', 'neutral', 'Memproses absen pulang...');
+    
+    const result = await apiPost('checkOut', {
+        email: currentUser.email,
+        photo: capturedPhoto,
+        lat: currentLocation.lat,
+        lng: currentLocation.lng
     });
-    container.innerHTML = '<div class="table-container"><table><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-  } else {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p>Belum ada data guru</p></div>';
-  }
+    
+    if (result.status === 'success') {
+        showMessage('attendanceMessage', 'success', result.message);
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+    } else {
+        showMessage('attendanceMessage', 'error', result.message);
+    }
 }
 
-async function toggleUser(userId, currentStatus) {
-  const newStatus = currentStatus !== 'true';
-  const result = await callAPI('toggle_user_active', { user_id: userId, is_active: newStatus });
-  if (result.status === 'success') {
-    showToast(result.message, 'success');
-    await loadTeachers();
-  } else {
-    showToast(result.message, 'error');
-  }
+async function handleGetLocation() {
+    const locationBtn = document.getElementById('getLocationBtn');
+    const locationInfo = document.getElementById('locationInfo');
+    
+    if (locationBtn) {
+        locationBtn.disabled = true;
+        locationBtn.textContent = 'Mendapatkan lokasi...';
+    }
+    
+    try {
+        const location = await getCurrentLocation();
+        currentLocation = location;
+        
+        if (locationInfo) {
+            locationInfo.innerHTML = `✅ Lokasi ditemukan! (Lat: ${location.lat.toFixed(6)}, Lng: ${location.lng.toFixed(6)})`;
+            locationInfo.style.color = '#065f46';
+        }
+    } catch (error) {
+        if (locationInfo) {
+            locationInfo.innerHTML = `❌ ${error.message}`;
+            locationInfo.style.color = '#991b1b';
+        }
+    } finally {
+        if (locationBtn) {
+            locationBtn.disabled = false;
+            locationBtn.textContent = 'Dapatkan Lokasi Saya';
+        }
+    }
 }
 
-async function loadLogs() {
-  const result = await callAPI('get_activity_logs', { limit: 50 });
-  const container = document.getElementById('logsList');
-  if (!container) return;
+// ==================== FORGOT PASSWORD ====================
+async function sendOTP() {
+    const email = document.getElementById('forgotEmail').value;
+    if (!email) {
+        showMessage('forgotMessage', 'error', 'Masukkan email Anda');
+        return;
+    }
+    
+    forgotEmail = email;
+    showMessage('forgotMessage', 'neutral', 'Mengirim OTP...');
+    
+    const result = await apiPost('sendPasswordResetOTP', { email });
+    
+    if (result.status === 'success') {
+        showMessage('forgotMessage', 'success', result.message);
+        document.getElementById('forgotStep1').style.display = 'none';
+        document.getElementById('forgotStep2').style.display = 'block';
+        startOtpTimer(10);
+    } else {
+        showMessage('forgotMessage', 'error', result.message);
+    }
+}
 
-  if (result.status === 'success' && result.data.logs && result.data.logs.length > 0) {
-    const iconMap = {
-      LOGIN: 'fa-sign-in-alt', LOGOUT: 'fa-sign-out-alt',
-      CHECKIN: 'fa-fingerprint', CHECKOUT: 'fa-fingerprint',
-      SUBMIT_SICK: 'fa-file-medical', APPROVE_SICK: 'fa-check-double',
-      REGISTER: 'fa-user-plus', ACTIVATE: 'fa-check-circle'
-    };
-    let html = '';
-    result.data.logs.forEach(function (log) {
-      const icon = iconMap[log.action] || 'fa-info-circle';
-      html += '<div class="log-item">';
-      html += '<div class="log-icon"><i class="fas ' + icon + '"></i></div>';
-      html += '<div class="log-detail"><div class="log-action">' + log.action + '</div>';
-      html += '<div class="log-msg">' + (log.detail || '-') + '</div>';
-      html += '<div class="log-time"><i class="fas fa-clock"></i> ' + log.timestamp + '</div></div>';
-      html += '<div class="log-user">' + (log.email || 'System') + '</div>';
-      html += '</div>';
+function startOtpTimer(minutes) {
+    let time = minutes * 60;
+    const timerElement = document.getElementById('otpTimer');
+    
+    if (otpCountdownInterval) clearInterval(otpCountdownInterval);
+    
+    otpCountdownInterval = setInterval(() => {
+        time--;
+        const mins = Math.floor(time / 60);
+        const secs = time % 60;
+        if (timerElement) {
+            timerElement.textContent = `OTP berlaku: ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        if (time <= 0) {
+            clearInterval(otpCountdownInterval);
+            if (timerElement) timerElement.textContent = 'OTP telah kadaluarsa';
+        }
+    }, 1000);
+}
+
+async function verifyOTPCode() {
+    const otp = document.getElementById('otpCode').value;
+    if (!otp || otp.length !== 6) {
+        showMessage('forgotMessage', 'error', 'Masukkan 6 digit OTP');
+        return;
+    }
+    
+    showMessage('forgotMessage', 'neutral', 'Memverifikasi OTP...');
+    
+    const result = await apiPost('verifyOTP', { email: forgotEmail, otp });
+    
+    if (result.status === 'success') {
+        forgotOtpVerified = true;
+        showMessage('forgotMessage', 'success', result.message);
+        document.getElementById('forgotStep2').style.display = 'none';
+        document.getElementById('forgotStep3').style.display = 'block';
+        if (otpCountdownInterval) clearInterval(otpCountdownInterval);
+    } else {
+        showMessage('forgotMessage', 'error', result.message);
+    }
+}
+
+async function resendOTP() {
+    if (!forgotEmail) return;
+    
+    showMessage('forgotMessage', 'neutral', 'Mengirim ulang OTP...');
+    
+    const result = await apiPost('sendPasswordResetOTP', { email: forgotEmail });
+    
+    if (result.status === 'success') {
+        showMessage('forgotMessage', 'success', result.message);
+        startOtpTimer(10);
+    } else {
+        showMessage('forgotMessage', 'error', result.message);
+    }
+}
+
+async function resetPassword() {
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (!newPassword || newPassword.length < 6) {
+        showMessage('forgotMessage', 'error', 'Password minimal 6 karakter');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showMessage('forgotMessage', 'error', 'Password tidak sama');
+        return;
+    }
+    
+    showMessage('forgotMessage', 'neutral', 'Merreset password...');
+    
+    const result = await apiPost('resetPassword', { email: forgotEmail, newPassword });
+    
+    if (result.status === 'success') {
+        showMessage('forgotMessage', 'success', result.message);
+        setTimeout(() => {
+            const modal = document.getElementById('forgotModal');
+            if (modal) modal.style.display = 'none';
+            document.getElementById('forgotStep1').style.display = 'block';
+            document.getElementById('forgotStep2').style.display = 'none';
+            document.getElementById('forgotStep3').style.display = 'none';
+            document.getElementById('forgotEmail').value = '';
+            document.getElementById('otpCode').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            forgotOtpVerified = false;
+        }, 2000);
+    } else {
+        showMessage('forgotMessage', 'error', result.message);
+    }
+}
+
+async function resendVerificationEmail() {
+    const email = document.getElementById('loginEmail').value;
+    if (!email) {
+        showMessage('loginMessage', 'error', 'Masukkan email terlebih dahulu');
+        return;
+    }
+    
+    showMessage('loginMessage', 'neutral', 'Mengirim ulang verifikasi...');
+    
+    const result = await apiPost('resendVerification', { email });
+    
+    if (result.status === 'success') {
+        showMessage('loginMessage', 'success', result.message);
+    } else {
+        showMessage('loginMessage', 'error', result.message);
+    }
+}
+
+// ==================== LOAD PROFILE ====================
+function loadProfile() {
+    if (!currentUser) return;
+    
+    const nameElements = ['userName', 'profileName'];
+    nameElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = currentUser.nama;
     });
-    container.innerHTML = html;
-  } else {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-history"></i><p>Belum ada log aktivitas</p></div>';
-  }
+    
+    const emailElements = ['profileEmail'];
+    emailElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = currentUser.email;
+    });
+    
+    const roleElements = ['userRole', 'profileRole'];
+    roleElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            if (currentUser.role === 'guru') el.textContent = 'Guru';
+            else if (currentUser.role === 'kepsek') el.textContent = 'Kepala Sekolah';
+            else if (currentUser.role === 'admin') el.textContent = 'Administrator';
+            else el.textContent = currentUser.role;
+        }
+    });
 }
 
-async function sendMonthlyReport() {
-  const monthEl = document.getElementById('adminMonth');
-  const yearEl = document.getElementById('adminYear');
-  const month = monthEl ? monthEl.value : (new Date().getMonth() + 1).toString().padStart(2, '0');
-  const year = yearEl ? yearEl.value : new Date().getFullYear();
-
-  const result = await callAPI('send_monthly_report', { month: month, year: year });
-  showToast(result.message, result.status === 'success' ? 'success' : 'error');
+// ==================== PAGE NAVIGATION ====================
+function initNavigation() {
+    const navItems = document.querySelectorAll('.nav-item');
+    const pages = document.querySelectorAll('.page');
+    
+    navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const pageId = item.dataset.page;
+            
+            navItems.forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+            
+            pages.forEach(page => page.classList.remove('active'));
+            const targetPage = document.getElementById(`page${pageId.charAt(0).toUpperCase() + pageId.slice(1)}`);
+            if (targetPage) targetPage.classList.add('active');
+            
+            const pageTitle = document.getElementById('pageTitle');
+            if (pageTitle) pageTitle.textContent = item.textContent.trim();
+            
+            if (pageId === 'history') {
+                loadHistory();
+            } else if (pageId === 'dashboard') {
+                loadDashboardStats();
+                loadTodaySchedule();
+            } else if (pageId === 'attendance') {
+                setTimeout(() => {
+                    initCamera();
+                    loadTodayStatus();
+                }, 100);
+            }
+        });
+    });
 }
 
-// ================================================
-// TAB SWITCHING - FIXED
-// ================================================
-function showTab(tabName) {
-  // Sembunyikan semua tab content guru
-  ['tabPresensi', 'tabIzin', 'tabRiwayat'].forEach(function (id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-
-  // Tampilkan tab yang dipilih
-  const target = {
-    presensi: 'tabPresensi',
-    izin: 'tabIzin',
-    riwayat: 'tabRiwayat'
-  }[tabName];
-
-  if (target) {
-    const el = document.getElementById(target);
-    if (el) el.style.display = 'block';
-  }
-
-  // Update tombol tab aktif
-  document.querySelectorAll('#pageGuru .tab-btn').forEach(function (btn) {
-    btn.classList.remove('active');
-    if (btn.getAttribute('data-tab') === tabName) btn.classList.add('active');
-  });
+function initMobileMenu() {
+    const menuBtn = document.getElementById('mobileMenuToggle');
+    const sidebar = document.querySelector('.sidebar');
+    
+    if (menuBtn && sidebar) {
+        menuBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('mobile-open');
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (sidebar.classList.contains('mobile-open') && !sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
+                sidebar.classList.remove('mobile-open');
+            }
+        });
+    }
 }
 
-function showAdminTab(tabName) {
-  // Sembunyikan semua tab content admin
-  ['adminTabRekap', 'adminTabIzin', 'adminTabGuru', 'adminTabLog'].forEach(function (id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-
-  // Tampilkan tab yang dipilih
-  const target = {
-    rekap: 'adminTabRekap',
-    izinAdmin: 'adminTabIzin',
-    guru: 'adminTabGuru',
-    log: 'adminTabLog'
-  }[tabName];
-
-  if (target) {
-    const el = document.getElementById(target);
-    if (el) el.style.display = 'block';
-  }
-
-  // Update tombol tab aktif
-  document.querySelectorAll('#pageKepsek .tab-btn').forEach(function (btn) {
-    btn.classList.remove('active');
-    if (btn.getAttribute('data-tab') === tabName) btn.classList.add('active');
-  });
+// ==================== DASHBOARD STATS ====================
+async function loadDashboardStats() {
+    const result = await apiGet('getAllUsers');
+    if (result.status === 'success') {
+        const totalGuru = result.data.filter(u => u.role === 'guru').length;
+        const totalGuruElem = document.getElementById('totalGuru');
+        if (totalGuruElem) totalGuruElem.textContent = totalGuru;
+    }
+    
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    if (currentUser) {
+        const historyResult = await apiGet('getAttendanceHistory', { email: currentUser.email, month, year });
+        if (historyResult.status === 'success') {
+            const totalHadir = historyResult.data.length;
+            const totalHadirElem = document.getElementById('totalHadir');
+            if (totalHadirElem) totalHadirElem.textContent = totalHadir;
+            const persen = Math.round((totalHadir / 22) * 100);
+            const persenElem = document.getElementById('persenKehadiran');
+            if (persenElem) persenElem.textContent = `${persen}%`;
+        }
+    }
 }
 
-// ================================================
-// PDF EXPORT (placeholder)
-// ================================================
-async function exportPDF() {
-  showToast('Fitur ekspor PDF akan segera hadir', 'warning');
+// ==================== CHANGE PASSWORD ====================
+async function changePassword() {
+    const newPassword1 = document.getElementById('newPassword1').value;
+    const newPassword2 = document.getElementById('newPassword2').value;
+    
+    if (!newPassword1 || newPassword1.length < 6) {
+        showMessage('changePwMessage', 'error', 'Password minimal 6 karakter');
+        return;
+    }
+    
+    if (newPassword1 !== newPassword2) {
+        showMessage('changePwMessage', 'error', 'Password tidak sama');
+        return;
+    }
+    
+    showMessage('changePwMessage', 'neutral', 'Mengganti password...');
+    
+    const result = await apiPost('resetPassword', { email: currentUser.email, newPassword: newPassword1 });
+    
+    if (result.status === 'success') {
+        showMessage('changePwMessage', 'success', 'Password berhasil diganti');
+        setTimeout(() => {
+            const modal = document.getElementById('changePasswordModal');
+            if (modal) modal.style.display = 'none';
+            document.getElementById('newPassword1').value = '';
+            document.getElementById('newPassword2').value = '';
+        }, 2000);
+    } else {
+        showMessage('changePwMessage', 'error', result.message);
+    }
 }
 
-async function exportAdminPDF() {
-  showToast('Fitur ekspor PDF akan segera hadir', 'warning');
+// ==================== INITIALIZATION ====================
+function initYearSelect() {
+    const yearSelect = document.getElementById('historyYear');
+    if (yearSelect) {
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+            const option = document.createElement('option');
+            option.value = y;
+            option.textContent = y;
+            if (y === currentYear) option.selected = true;
+            yearSelect.appendChild(option);
+        }
+    }
 }
 
-// ================================================
-// UTILITY
-// ================================================
-function showPhoto(url) {
-  const modalImg = document.getElementById('modalPhotoImg');
-  const modal = document.getElementById('photoModal');
-  if (modalImg) modalImg.src = url;
-  if (modal) modal.style.display = 'flex';
+function initModals() {
+    const closeButtons = document.querySelectorAll('.close-modal');
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const modal = btn.closest('.modal');
+            if (modal) modal.style.display = 'none';
+        });
+    });
+    
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
 }
 
-function closePhotoModal() {
-  const modal = document.getElementById('photoModal');
-  if (modal) modal.style.display = 'none';
+// ==================== GENERATE REPORT ====================
+async function generateMonthlyReport() {
+    const month = document.getElementById('reportMonth')?.value;
+    const year = document.getElementById('reportYear')?.value;
+    const sendToEmail = document.getElementById('reportEmail')?.value || currentUser.email;
+    
+    if (!month || !year) return;
+    
+    showMessage('reportMessage', 'neutral', 'Mengirim laporan...');
+    
+    const result = await apiPost('generateMonthlyReport', { month, year, sendToEmail });
+    
+    if (result.status === 'success') {
+        showMessage('reportMessage', 'success', `Laporan telah dikirim ke email ${sendToEmail}`);
+    } else {
+        showMessage('reportMessage', 'error', result.message);
+    }
 }
 
-function togglePassword(inputId) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  const icon = input.parentElement ? input.parentElement.querySelector('.toggle-password i') : null;
-  if (input.type === 'password') {
-    input.type = 'text';
-    if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
-  } else {
-    input.type = 'password';
-    if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
-  }
-}
+// ==================== EVENT LISTENERS ====================
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("🚀 Aplikasi dimulai...");
+    console.log("📡 API URL:", APPS_SCRIPT_URL);
+    
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
+    
+    // Test koneksi
+    const connected = await testConnection();
+    if (!connected) {
+        console.error("⚠️ Peringatan: Tidak bisa terhubung ke server!");
+    }
+    
+    // Cek auth untuk halaman dashboard
+    const isDashboardPage = window.location.pathname.includes('dashboard-');
+    if (isDashboardPage) {
+        if (!checkAuth()) {
+            window.location.href = 'index.html';
+            return;
+        }
+        loadProfile();
+        initNavigation();
+        initMobileMenu();
+        initYearSelect();
+        initModals();
+        loadTodaySchedule();
+        loadDashboardStats();
+    }
+    
+    // Halaman Login/Register
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+    
+    const registerForm = document.getElementById('registerForm');
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    // Tab switching
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            tabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const loginFormDiv = document.getElementById('loginForm');
+            const registerFormDiv = document.getElementById('registerForm');
+            
+            if (tab === 'login') {
+                if (loginFormDiv) loginFormDiv.classList.add('active');
+                if (registerFormDiv) registerFormDiv.classList.remove('active');
+            } else {
+                if (loginFormDiv) loginFormDiv.classList.remove('active');
+                if (registerFormDiv) registerFormDiv.classList.add('active');
+            }
+        });
+    });
+    
+    // Forgot password
+    const forgotLink = document.getElementById('forgotPasswordLink');
+    const forgotModal = document.getElementById('forgotModal');
+    if (forgotLink && forgotModal) {
+        forgotLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            forgotModal.style.display = 'flex';
+        });
+    }
+    
+    const sendOtpBtn = document.getElementById('sendOtpBtn');
+    if (sendOtpBtn) sendOtpBtn.addEventListener('click', sendOTP);
+    
+    const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+    if (verifyOtpBtn) verifyOtpBtn.addEventListener('click', verifyOTPCode);
+    
+    const resendOtpBtn = document.getElementById('resendOtpBtn');
+    if (resendOtpBtn) resendOtpBtn.addEventListener('click', resendOTP);
+    
+    const resetPasswordBtn = document.getElementById('resetPasswordBtn');
+    if (resetPasswordBtn) resetPasswordBtn.addEventListener('click', resetPassword);
+    
+    const resendVerifLink = document.getElementById('resendVerificationLink');
+    if (resendVerifLink) resendVerifLink.addEventListener('click', resendVerificationEmail);
+    
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    
+    // Halaman Guru - Absensi
+    const captureBtn = document.getElementById('captureBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
+    const getLocationBtn = document.getElementById('getLocationBtn');
+    const checkInBtn = document.getElementById('checkInBtn');
+    const checkOutBtn = document.getElementById('checkOutBtn');
+    
+    if (captureBtn) {
+        captureBtn.addEventListener('click', () => {
+            capturePhoto();
+            captureBtn.disabled = true;
+        });
+    }
+    
+    if (retakeBtn) {
+        retakeBtn.addEventListener('click', () => {
+            retakePhoto();
+            const captureBtnEl = document.getElementById('captureBtn');
+            if (captureBtnEl) captureBtnEl.disabled = false;
+        });
+    }
+    
+    if (getLocationBtn) getLocationBtn.addEventListener('click', handleGetLocation);
+    if (checkInBtn) checkInBtn.addEventListener('click', handleCheckIn);
+    if (checkOutBtn) checkOutBtn.addEventListener('click', handleCheckOut);
+    
+    const loadHistoryBtn = document.getElementById('loadHistoryBtn');
+    if (loadHistoryBtn) loadHistoryBtn.addEventListener('click', loadHistory);
+    
+    const generateReportBtn = document.getElementById('generateReportBtn');
+    if (generateReportBtn) generateReportBtn.addEventListener('click', generateMonthlyReport);
+    
+    const changePasswordBtn = document.getElementById('changePasswordBtn');
+    if (changePasswordBtn) {
+        changePasswordBtn.addEventListener('click', () => {
+            const modal = document.getElementById('changePasswordModal');
+            if (modal) modal.style.display = 'flex';
+        });
+    }
+    
+    const confirmChangePassword = document.getElementById('confirmChangePassword');
+    if (confirmChangePassword) confirmChangePassword.addEventListener('click', changePassword);
+});
