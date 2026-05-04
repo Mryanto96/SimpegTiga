@@ -23,7 +23,7 @@ body {
 .auth-card {
     background: white;
     border-radius: 24px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     width: 100%;
     max-width: 450px;
     padding: 40px;
@@ -35,6 +35,7 @@ body {
         opacity: 0;
         transform: translateY(30px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -103,8 +104,13 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .form-group {
@@ -123,7 +129,8 @@ body {
     color: #4f46e5;
 }
 
-.form-group input, .form-group select {
+.form-group input,
+.form-group select {
     width: 100%;
     padding: 12px 16px;
     border: 1px solid #e2e8f0;
@@ -132,10 +139,11 @@ body {
     transition: all 0.3s;
 }
 
-.form-group input:focus, .form-group select:focus {
+.form-group input:focus,
+.form-group select:focus {
     outline: none;
     border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .form-options {
@@ -173,7 +181,7 @@ body {
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(79,70,229,0.3);
+    box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
 }
 
 .btn-secondary {
@@ -206,6 +214,30 @@ body {
     font-weight: 600;
 }
 
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    background: #4f46e5;
+    color: white;
+    margin: 2px;
+}
+
+.btn-danger {
+    background: #ef4444;
+}
+
+.btn-text {
+    background: none;
+    border: none;
+    color: #4f46e5;
+    cursor: pointer;
+    font-size: 14px;
+    text-decoration: underline;
+}
+
 .message {
     margin-top: 16px;
     padding: 12px;
@@ -221,6 +253,11 @@ body {
 .message.error {
     background: #fee2e2;
     color: #991b1b;
+}
+
+.message.neutral {
+    background: #e0e7ff;
+    color: #3730a3;
 }
 
 /* ========== DASHBOARD ========== */
@@ -245,7 +282,7 @@ body {
 
 .sidebar-header {
     padding: 24px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .logo-small {
@@ -270,13 +307,14 @@ body {
     align-items: center;
     gap: 12px;
     padding: 12px 24px;
-    color: rgba(255,255,255,0.7);
+    color: rgba(255, 255, 255, 0.7);
     text-decoration: none;
     transition: all 0.3s;
 }
 
-.nav-item:hover, .nav-item.active {
-    background: rgba(255,255,255,0.1);
+.nav-item:hover,
+.nav-item.active {
+    background: rgba(255, 255, 255, 0.1);
     color: white;
     border-left: 3px solid #f59e0b;
 }
@@ -287,7 +325,7 @@ body {
 
 .sidebar-footer {
     padding: 20px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .user-info {
@@ -296,7 +334,7 @@ body {
     gap: 12px;
     margin-bottom: 16px;
     padding: 8px;
-    background: rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
 }
 
@@ -317,7 +355,7 @@ body {
 .btn-logout {
     width: 100%;
     padding: 10px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     color: white;
     border: none;
     border-radius: 10px;
@@ -343,7 +381,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;
     z-index: 99;
@@ -392,7 +430,7 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s;
 }
 
@@ -415,15 +453,19 @@ body {
     font-size: 14px;
 }
 
-.info-card, .action-card {
+.info-card,
+.action-card,
+.form-card {
     background: white;
     border-radius: 16px;
     padding: 24px;
     margin-bottom: 24px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.info-card h3, .action-card h3 {
+.info-card h3,
+.action-card h3,
+.form-card h4 {
     margin-bottom: 16px;
     display: flex;
     align-items: center;
@@ -492,7 +534,8 @@ body {
     overflow: hidden;
 }
 
-.data-table th, .data-table td {
+.data-table th,
+.data-table td {
     padding: 12px 16px;
     text-align: left;
     border-bottom: 1px solid #e2e8f0;
@@ -514,10 +557,69 @@ body {
     flex-wrap: wrap;
 }
 
-.filter-bar input, .filter-bar select {
+.filter-bar input,
+.filter-bar select {
     padding: 10px 16px;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.profile-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.profile-field {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.profile-field label {
+    font-weight: 600;
+    color: #64748b;
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.profile-field p {
+    font-size: 16px;
+    color: #1e293b;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-badge.success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-badge.warning {
+    background: #fed7aa;
+    color: #9a3412;
+}
+
+.teacher-detail {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8fafc;
+    border-radius: 16px;
 }
 
 /* Modal */
@@ -528,7 +630,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     justify-content: center;
     align-items: center;
     z-index: 1000;
@@ -552,7 +654,8 @@ body {
     color: #64748b;
 }
 
-.modal-content input {
+.modal-content input,
+.modal-content select {
     width: 100%;
     padding: 12px;
     margin: 10px 0;
@@ -560,38 +663,48 @@ body {
     border-radius: 10px;
 }
 
+.timer-text {
+    font-size: 12px;
+    color: #ef4444;
+    margin: 8px 0;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar {
         transform: translateX(-100%);
     }
-    
+
     .sidebar.mobile-open {
         transform: translateX(0);
     }
-    
+
     .main-content {
         margin-left: 0;
     }
-    
+
     .mobile-menu-btn {
         display: block;
     }
-    
+
     .stats-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .auth-card {
         padding: 24px;
     }
-    
+
     .attendance-buttons {
         flex-direction: column;
     }
-    
+
     .attendance-buttons button {
         width: 100%;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -599,11 +712,11 @@ body {
     .content-area {
         padding: 16px;
     }
-    
+
     .top-bar {
         padding: 12px 16px;
     }
-    
+
     .date-time {
         font-size: 10px;
         gap: 8px;

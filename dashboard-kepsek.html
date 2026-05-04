@@ -40,7 +40,6 @@
             </header>
 
             <div class="content-area">
-                <!-- Dashboard Page -->
                 <div id="pageDashboard" class="page active">
                     <div class="stats-grid">
                         <div class="stat-card"><i class="fas fa-users"></i>
@@ -68,7 +67,6 @@
                     </div>
                 </div>
 
-                <!-- Teachers Page -->
                 <div id="pageTeachers" class="page">
                     <h3>Data Guru</h3>
                     <div class="filter-bar"><input type="text" id="searchTeacher" placeholder="Cari nama atau email...">
@@ -89,21 +87,31 @@
                     </div>
                     <div id="teacherDetail" class="teacher-detail" style="display:none;">
                         <h4>Detail Absensi</h4>
-                        <div id="teacherAttendanceList"></div>
+                        <div id="teacherAttendanceList"></div><button id="closeDetailBtn"
+                            class="btn-text">Tutup</button>
                     </div>
                 </div>
 
-                <!-- Reports Page -->
                 <div id="pageReports" class="page">
                     <h3>Generate Laporan</h3>
-                    <div class="report-form"><select id="reportMonth"></select><select id="reportYear"></select><button
-                            id="generateReportBtn" class="btn-primary"><i class="fas fa-download"></i> Generate & Kirim
-                            Email</button></div>
+                    <div class="report-form"><select id="reportMonth">
+                            <option value="1">Januari</option>
+                            <option value="2">Februari</option>
+                            <option value="3">Maret</option>
+                            <option value="4">April</option>
+                            <option value="5">Mei</option>
+                            <option value="6">Juni</option>
+                            <option value="7">Juli</option>
+                            <option value="8">Agustus</option>
+                            <option value="9">September</option>
+                            <option value="10">Oktober</option>
+                            <option value="11">November</option>
+                            <option value="12">Desember</option>
+                        </select><select id="reportYear"></select><button id="generateReportBtn" class="btn-primary"><i
+                                class="fas fa-download"></i> Generate & Kirim Email</button></div>
                     <div id="reportMessage" class="message"></div>
-                    <div id="reportPreview"></div>
                 </div>
 
-                <!-- Profile Page -->
                 <div id="pageProfile" class="page">
                     <h3>Profil Saya</h3>
                     <div class="profile-card">
@@ -117,6 +125,8 @@
                             <p id="profileRole">-</p>
                         </div>
                     </div>
+                    <button id="changePasswordBtn" class="btn-secondary"><i class="fas fa-key"></i> Ganti
+                        Password</button>
                 </div>
             </div>
         </main>
